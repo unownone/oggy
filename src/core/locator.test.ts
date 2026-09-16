@@ -71,4 +71,46 @@ describe("scoreLocators", () => {
     const strategies = scoreLocators(el).map((l) => l.strategy);
     expect(strategies).toEqual(["testid", "aria", "id", "name", "css"]);
   });
+
+  it("css path uniquely resolves the 3rd result in a list", () => {
+    const list = document.createElement("div");
+    list.id = "rso";
+    for (let i = 1; i <= 5; i++) {
+      const g = document.createElement("div");
+      g.className = "g";
+      const a = document.createElement("a");
+      a.href = `#r${i}`;
+      a.textContent = `Result ${i}`;
+      g.appendChild(a);
+      list.appendChild(g);
+    }
+    document.body.appendChild(list);
+
+    const third = list.querySelectorAll("a")[2];
+    const css = scoreLocators(third).find((l) => l.strategy === "css")!.value;
+    expect(css).toContain("nth-of-type(3)");
+    expect(document.querySelector(css)).toBe(third);
+    expect(document.querySelector(css)?.textContent).toBe("Result 3");
+  });
+
+  it("does not stop the css path on a repeated data-testid (list items)", () => {
+    const list = document.createElement("div");
+    list.id = "timeline";
+    for (let i = 1; i <= 3; i++) {
+      const cell = document.createElement("article");
+      cell.className = "cellInnerDiv";
+      cell.setAttribute("data-testid", "cellInnerDiv");
+      const btn = document.createElement("button");
+      btn.className = "open-post";
+      btn.textContent = "View comments";
+      cell.appendChild(btn);
+      list.appendChild(cell);
+    }
+    document.body.appendChild(list);
+
+    const thirdBtn = list.querySelectorAll("button")[2];
+    const css = scoreLocators(thirdBtn).find((l) => l.strategy === "css")!.value;
+    expect(css).toContain("nth-of-type(3)");
+    expect(document.querySelector(css)).toBe(thirdBtn);
+  });
 });

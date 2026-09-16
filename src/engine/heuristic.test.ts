@@ -72,6 +72,17 @@ describe("HeuristicEngine", () => {
     expect(tool.steps.some((s) => s.type === "submit")).toBe(true);
   });
 
+  it("inserts waitFor before a click that follows a fill", async () => {
+    const session = makeSession([
+      { kind: "input", locators: loc("q"), fieldName: "q", inputType: "text", value: "shoes", url: "https://example.com", t: 1000 },
+      { kind: "click", locators: loc("result-3"), text: "Third", url: "https://example.com", t: 1200 },
+    ]);
+    const mcp = await engine.synthesize({ origin: "https://example.com", session });
+    const types = mcp.tools[0].steps.map((s) => s.type);
+    expect(types).toContain("waitFor");
+    expect(types.indexOf("waitFor")).toBeLessThan(types.lastIndexOf("click"));
+  });
+
   it("marks checkout as consequential", async () => {
     const session = makeSession([
       { kind: "click", locators: loc("checkout"), text: "Complete Purchase", url: "https://example.com", t: 1000 },

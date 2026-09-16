@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Oggy — Google-like fixture</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, sans-serif; background: #fff; color: #202124; }
+    .RNNXgb {
+      display: flex; margin: 24px auto; max-width: 580px;
+      border: 1px solid #dfe1e5; border-radius: 24px; padding: 8px 16px;
+    }
+    .RNNXgb:focus-within { box-shadow: 0 1px 6px rgba(32,33,36,.28); }
+    .gLFyf { flex: 1; border: 0; font-size: 16px; outline: none; }
+    .Tg7LZd { background: #1a73e8; color: #fff; border: 0; border-radius: 4px; padding: 8px 16px; cursor: pointer; }
+    #rso { max-width: 652px; margin: 16px auto; }
+    .g { margin-bottom: 22px; }
+    .g a { color: #1a0dab; font-size: 20px; text-decoration: none; }
+    .g .VwiC3b { color: #4d5156; font-size: 14px; }
+    .g[data-selected="true"] a { background: #e8f0fe; }
+    #preview { max-width: 652px; margin: 24px auto; padding: 16px; border-top: 1px solid #eee; min-height: 48px; }
+  </style>
+</head>
+<body>
+  <form id="search-form" role="search">
+    <div class="RNNXgb">
+      <textarea class="gLFyf" name="q" rows="1" aria-label="Search" placeholder="Search"></textarea>
+      <button class="Tg7LZd" type="submit">Google Search</button>
+    </div>
+  </form>
+  <div id="rso"></div>
+  <div id="preview" data-testid="google-preview"></div>
+  <script>
+    const CORPUS = [
+      { t: "Automation testing handbook", d: "How to automate browsers without an LLM in the loop." },
+      { t: "Playwright locators deep dive", d: "nth-of-type, role, and name locators on real CSS." },
+      { t: "WebMCP tool recipes", d: "Record a flow, synthesize JSON tools, replay them." },
+      { t: "Locator strategy for search results", d: "Why clicking the 3rd organic result is fragile." },
+      { t: "TypeScript extension tooling", d: "MV3, WXT, and document.modelContext." },
+      { t: "Browser extension recording", d: "Capture clicks, fills, submits; redact passwords." },
+      { t: "CSS-in-JS hashed class names", d: "RNNXgb and tF2Cxc stand-ins for production Google." },
+      { t: "Oggy heuristic engine", d: "Segment sessions on idle gaps and navigations." },
+    ];
+
+    const form = document.getElementById("search-form");
+    const input = document.querySelector('textarea[name="q"]');
+    const rso = document.getElementById("rso");
+    const preview = document.getElementById("preview");
+
+    function rank(q) {
+      const needle = q.trim().toLowerCase();
+      const scored = CORPUS.map((item, i) => ({
+        item,
+        i,
+        score: !needle ? 0 : (item.t + " " + item.d).toLowerCase().includes(needle) ? 2 : 0,
+      }));
+      scored.sort((a, b) => b.score - a.score || a.i - b.i);
+      const hits = scored.filter((s) => s.score > 0).map((s) => s.item);
+      const rest = scored.filter((s) => s.score === 0).map((s) => s.item);
+      const ordered = hits.concat(rest);
+      while (ordered.length < 5) ordered.push({ t: `Related to ${q || "search"} ${ordered.length + 1}`, d: "Padded result." });
+      return ordered.slice(0, 8);
+    }
+
+    function render(q) {
+      rso.innerHTML = "";
+      preview.textContent = "";
+      rank(q).forEach((item, idx) => {
+        const g = document.createElement("div");
+        g.className = "g";
+        g.setAttribute("data-rank", String(idx + 1));
+        const a = document.createElement("a");
+        a.href = `#r${idx + 1}`;
+        a.textContent = item.t;
+        a.addEventListener("click", (e) => {
+          e.preventDefault();
+          rso.querySelectorAll(".g").forEach((el) => el.removeAttribute("data-selected"));
+          g.setAttribute("data-selected", "true");
+          preview.textContent = `Opened result ${idx + 1}: ${item.t}`;
+        });
+        const snip = document.createElement("div");
+        snip.className = "VwiC3b";
+        snip.textContent = item.d;
+        g.appendChild(a);
+        g.appendChild(snip);
+        rso.appendChild(g);
+      });
+    }
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      render(input.value);
+    });
+  </script>
+</body>
+</html>

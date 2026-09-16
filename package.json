@@ -16,7 +16,9 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "e2e": "npm run build && npx playwright test",
-    "demo": "npx serve demo/site -l 4173 --no-clipboard"
+    "demo": "npx serve demo/site -l 4173 --no-clipboard",
+    "bench": "npx tsx benches/runner/cli.ts",
+    "bench:live": "npx tsx benches/runner/cli.ts --live"
   },
   "devDependencies": {
     "@mcp-b/webmcp-types": "^0.1.0",
@@ -24,6 +26,7 @@
     "@vitest/coverage-v8": "^3.2.0",
     "jsdom": "^30.0.1",
     "serve": "^14.2.6",
+    "tsx": "^4.19.0",
     "typescript": "^5.8.0",
     "vitest": "^3.2.0",
     "wxt": "^0.20.0"

@@ -12,7 +12,7 @@ export default defineConfig({
   test: {
     globals: true,
     restoreMocks: true,
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "benches/**/*.test.ts"],
     coverage: {
       provider: "v8",
       include: ["src/**/*.ts"],

@@ -119,21 +119,18 @@ export async function playStep(
 ): Promise<void> {
   switch (step.type) {
     case "click": {
-      const el = resolveLocators(step.locators);
+      const el = await resolveLocatorsWithWait(step.locators);
       if (el instanceof HTMLElement) el.click();
       break;
     }
 
     case "fill": {
-      const el = resolveLocators(step.locators);
+      const el = await resolveLocatorsWithWait(step.locators);
       if (
         el instanceof HTMLInputElement ||
         el instanceof HTMLTextAreaElement
       ) {
-        const value = String(args[step.arg] ?? "");
-        el.value = value;
-        el.dispatchEvent(new Event("input", { bubbles: true }));
-        el.dispatchEvent(new Event("change", { bubbles: true }));
+        setNativeValue(el, String(args[step.arg] ?? ""));
       }
       break;
     }
@@ -183,6 +180,39 @@ export async function playStep(
 
 // ── Locator resolution ────────────────────────────────────────────────────
 
+function setNativeValue(
+  el: HTMLInputElement | HTMLTextAreaElement,
+  value: string,
+): void {
+  const proto =
+    el instanceof HTMLTextAreaElement
+      ? HTMLTextAreaElement.prototype
+      : HTMLInputElement.prototype;
+  const desc = Object.getOwnPropertyDescriptor(proto, "value");
+  if (desc?.set) desc.set.call(el, value);
+  else el.value = value;
+  try {
+    el.dispatchEvent(
+      new InputEvent("input", {
+        bubbles: true,
+        cancelable: true,
+        inputType: "insertText",
+        data: value,
+      }),
+    );
+  } catch {
+    el.dispatchEvent(new Event("input", { bubbles: true, cancelable: true }));
+  }
+  el.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+async function resolveLocatorsWithWait(locators: Locator[]): Promise<Element | null> {
+  const immediate = resolveLocators(locators);
+  if (immediate) return immediate;
+  await waitForCondition({ type: "waitFor", locators }, 800);
+  return resolveLocators(locators);
+}
+
 function resolveLocators(locators: Locator[]): Element | null {
   for (const loc of locators) {
     let el: Element | null = null;
@@ -216,8 +246,10 @@ function resolveLocators(locators: Locator[]): Element | null {
   return null;
 }
 
-async function waitForCondition(step: Extract<ReplayStep, { type: "waitFor" }>): Promise<void> {
-  const timeout = 5000;
+async function waitForCondition(
+  step: Extract<ReplayStep, { type: "waitFor" }>,
+  timeout = 5000,
+): Promise<void> {
   const interval = 200;
   const start = Date.now();
 

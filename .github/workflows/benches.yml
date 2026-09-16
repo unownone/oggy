@@ -1,0 +1,61 @@
+name: benches
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+    inputs:
+      live:
+        description: "Also run live google.com / amazon.com / x.com benches"
+        type: boolean
+        default: false
+
+jobs:
+  fixtures:
+    name: CSS fixture benches
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium --with-deps
+      - run: npm run build
+      - name: Run fixture benches
+        run: npx tsx benches/runner/cli.ts --headless --out benches/reports/latest.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench-report-fixtures
+          path: benches/reports/
+
+  live:
+    name: Live site benches
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && inputs.live)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install chromium --with-deps
+      - run: npm run build
+      - name: Run live benches
+        run: npx tsx benches/runner/cli.ts --live --headless --fail-under 0 --out benches/reports/live.json google-live amazon-live x-live
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bench-report-live
+          path: benches/reports/

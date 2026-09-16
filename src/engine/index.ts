@@ -193,7 +193,20 @@ function toReplaySteps(segment: Segment, argMap: Map<string, number>): ReplaySte
     }
   }
 
-  return steps;
+  return withWaits(steps);
+}
+
+/** Wait for the next click target after a fill/submit/navigate so SPA results can render. */
+function withWaits(steps: ReplayStep[]): ReplayStep[] {
+  const out: ReplayStep[] = [];
+  for (const step of steps) {
+    const prev = out[out.length - 1];
+    if (step.type === "click" && prev && prev.type !== "waitFor") {
+      out.push({ type: "waitFor", locators: step.locators });
+    }
+    out.push(step);
+  }
+  return out;
 }
 
 // ── Heuristic engine ──────────────────────────────────────────────────────
