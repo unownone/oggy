@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Oggy — Amazon-like fixture</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Amazon Ember", Arial, sans-serif; background: #eaeded; color: #0f1111; }
+    .nav-belt { background: #131921; color: #fff; padding: 10px 16px; display: flex; gap: 12px; align-items: center; }
+    .nav-search-bar { display: flex; flex: 1; }
+    #twotabsearchtextbox { flex: 1; padding: 10px; border: 0; border-radius: 4px 0 0 4px; font-size: 15px; }
+    .nav-search-submit { background: #febd69; border: 0; padding: 10px 16px; border-radius: 0 4px 4px 0; cursor: pointer; font-weight: 700; }
+    .s-main-slot { max-width: 900px; margin: 16px auto; display: grid; gap: 12px; }
+    .s-result-item { background: #fff; padding: 16px; display: grid; grid-template-columns: 120px 1fr; gap: 16px; border: 1px solid #d5d9d9; }
+    .s-result-item .s-image { background: #f0f2f2; height: 100px; }
+    .s-result-item h2 { font-size: 16px; margin: 0 0 8px; }
+    .s-result-item a { color: #007185; text-decoration: none; }
+    .s-result-item[data-selected="true"] { outline: 3px solid #ff9900; }
+    #product { max-width: 900px; margin: 16px auto; background: #fff; padding: 16px; min-height: 48px; }
+  </style>
+</head>
+<body>
+  <header class="nav-belt">
+    <strong>amazon-fixture</strong>
+    <form class="nav-search-bar" id="nav-search-bar">
+      <input id="twotabsearchtextbox" name="field-keywords" type="text" aria-label="Search Amazon" placeholder="Search Amazon" />
+      <button class="nav-search-submit" type="submit">Go</button>
+    </form>
+  </header>
+  <div class="s-main-slot" id="results"></div>
+  <div id="product" data-testid="amazon-product"></div>
+  <script>
+    const CATALOG = [
+      { t: "Automation testing kit", p: "$42.00" },
+      { t: "Playwright field guide paperback", p: "$28.50" },
+      { t: "WebMCP USB recipe cards", p: "$15.99" },
+      { t: "Locator sticky notes (pack of 5)", p: "$9.40" },
+      { t: "TypeScript mug", p: "$18.00" },
+      { t: "Browser extension screwdriver set", p: "$22.10" },
+      { t: "CSS hashed-class hoodie", p: "$36.00" },
+      { t: "Oggy heuristic plush", p: "$19.95" },
+    ];
+
+    const form = document.getElementById("nav-search-bar");
+    const input = document.getElementById("twotabsearchtextbox");
+    const slot = document.getElementById("results");
+    const product = document.getElementById("product");
+
+    function rank(q) {
+      const needle = q.trim().toLowerCase();
+      const scored = CATALOG.map((item, i) => ({
+        item, i,
+        score: !needle ? 0 : item.t.toLowerCase().includes(needle) ? 2 : 0,
+      }));
+      scored.sort((a, b) => b.score - a.score || a.i - b.i);
+      const ordered = scored.filter((s) => s.score > 0).concat(scored.filter((s) => s.score === 0)).map((s) => s.item);
+      while (ordered.length < 5) ordered.push({ t: `Generic listing ${ordered.length + 1} for ${q || "search"}`, p: "$10.00" });
+      return ordered.slice(0, 8);
+    }
+
+    function render(q) {
+      slot.innerHTML = "";
+      product.textContent = "";
+      rank(q).forEach((item, idx) => {
+        const card = document.createElement("div");
+        card.className = "s-result-item";
+        card.setAttribute("data-component-type", "s-search-result");
+        card.setAttribute("data-rank", String(idx + 1));
+        const img = document.createElement("div");
+        img.className = "s-image";
+        const body = document.createElement("div");
+        const h2 = document.createElement("h2");
+        const a = document.createElement("a");
+        a.href = `#p${idx + 1}`;
+        a.textContent = item.t;
+        a.addEventListener("click", (e) => {
+          e.preventDefault();
+          slot.querySelectorAll(".s-result-item").forEach((el) => el.removeAttribute("data-selected"));
+          card.setAttribute("data-selected", "true");
+          product.textContent = `Opened listing ${idx + 1}: ${item.t} (${item.p})`;
+        });
+        h2.appendChild(a);
+        const price = document.createElement("div");
+        price.textContent = item.p;
+        body.appendChild(h2);
+        body.appendChild(price);
+        card.appendChild(img);
+        card.appendChild(body);
+        slot.appendChild(card);
+      });
+    }
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      render(input.value);
+    });
+  </script>
+</body>
+</html>

@@ -59,6 +59,8 @@ npm run test         # Vitest unit tests
 npm run test:watch   # Vitest watch mode
 npm run test:coverage # Coverage report
 npm run e2e          # Build + Playwright e2e (requires built extension)
+npm run bench        # Record→replay CSS-fixture benches (google/amazon/x stand-ins)
+npm run bench -- --live  # Same loop against the live sites (flaky; report-only)
 ```
 
 ### CI

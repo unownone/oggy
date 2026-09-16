@@ -28,9 +28,43 @@ export function toOriginKey(href: string): OriginKey {
   }
 }
 
+/** True for http(s) pages we can record; false for chrome-extension://, about:, etc. */
+export function isRecordableHref(href: string): boolean {
+  try {
+    const protocol = new URL(href).protocol;
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 /** True for http(s) page URLs — not chrome-extension://, about:, etc. */
 export function isHttpUrl(url: string | undefined | null): boolean {
-  return !!url && (url.startsWith("http://") || url.startsWith("https://"));
+  return typeof url === "string" && isRecordableHref(url);
+}
+
+export interface TabHint {
+  url?: string;
+  active?: boolean;
+  lastAccessed?: number;
+}
+
+/**
+ * Pick the origin to record against. Prefers an active http(s) tab so a
+ * popup opened as a full page (e2e) does not steal the origin.
+ */
+export function selectRecordableOrigin(tabs: TabHint[]): OriginKey | undefined {
+  const web = tabs.filter(
+    (t): t is TabHint & { url: string } =>
+      typeof t.url === "string" && isRecordableHref(t.url),
+  );
+  if (web.length === 0) return undefined;
+
+  const active = web.find((t) => t.active);
+  if (active) return toOriginKey(active.url);
+
+  web.sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0));
+  return toOriginKey(web[0].url);
 }
 
 /**
@@ -121,7 +155,9 @@ export function scoreLocators(el: Element): Locator[] {
   const locators: Locator[] = [];
 
   const testid = el.getAttribute("data-testid");
-  if (testid) locators.push({ strategy: "testid", value: testid });
+  if (testid && uniqueSelector(`[data-testid="${cssEscape(testid)}"]`)) {
+    locators.push({ strategy: "testid", value: testid });
+  }
 
   const ariaLabel = el.getAttribute("aria-label");
   const role = el.getAttribute("role") || el.tagName.toLowerCase();
@@ -130,20 +166,16 @@ export function scoreLocators(el: Element): Locator[] {
   }
 
   const id = el.getAttribute("id");
-  if (id) locators.push({ strategy: "id", value: id });
+  if (id && uniqueSelector(`#${cssEscape(id)}`)) {
+    locators.push({ strategy: "id", value: id });
+  }
 
   const name = el.getAttribute("name");
   if (name) locators.push({ strategy: "name", value: name });
 
-  // Short CSS path as fallback
-  const tag = el.tagName.toLowerCase();
-  const nthType = getNthOfType(el);
-  const parent = el.parentElement;
-  const parentTag = parent ? parent.tagName.toLowerCase() : "";
-  const css = parent
-    ? `${parentTag} > ${tag}:nth-of-type(${nthType})`
-    : tag;
-  locators.push({ strategy: "css", value: css });
+  // Ancestor-aware CSS path so "3rd result" doesn't collapse to the first
+  // match of `article > a:nth-of-type(1)`.
+  locators.push({ strategy: "css", value: cssPath(el) });
 
   return locators;
 }
@@ -158,6 +190,69 @@ function getNthOfType(el: Element): number {
     if (child === el) return idx;
   }
   return 1;
+}
+
+function uniqueSelector(selector: string): boolean {
+  try {
+    return document.querySelectorAll(selector).length === 1;
+  } catch {
+    return false;
+  }
+}
+
+function cssEscape(value: string): string {
+  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
+    return CSS.escape(value);
+  }
+  return value.replace(/[^a-zA-Z0-9_-]/g, "\\$&");
+}
+
+function firstClass(el: Element): string | undefined {
+  const raw = el.getAttribute("class");
+  if (!raw) return undefined;
+  return raw.split(/\s+/).find((c) => c.length > 0);
+}
+
+/**
+ * Build a CSS path of up to 6 ancestors, stopping at a unique id/testid.
+ * Includes `:nth-of-type` at each hop so list-index clicks survive replay.
+ */
+export function cssPath(el: Element): string {
+  const parts: string[] = [];
+  let node: Element | null = el;
+
+  for (let depth = 0; depth < 6 && node; depth++) {
+    const tag = node.tagName.toLowerCase();
+
+    if (node === document.documentElement) {
+      parts.unshift("html");
+      break;
+    }
+    if (node === document.body) {
+      parts.unshift("body");
+      break;
+    }
+
+    const testid = node.getAttribute("data-testid");
+    if (testid && uniqueSelector(`[data-testid="${cssEscape(testid)}"]`)) {
+      parts.unshift(`${tag}[data-testid="${cssEscape(testid)}"]`);
+      break;
+    }
+
+    const id = node.getAttribute("id");
+    if (id && !/^\d/.test(id) && uniqueSelector(`#${cssEscape(id)}`)) {
+      parts.unshift(`${tag}#${cssEscape(id)}`);
+      break;
+    }
+
+    const nth = getNthOfType(node);
+    const cls = firstClass(node);
+    const classSel = cls ? `.${cssEscape(cls)}` : "";
+    parts.unshift(`${tag}${classSel}:nth-of-type(${nth})`);
+    node = node.parentElement;
+  }
+
+  return parts.join(" > ");
 }
 
 // ── Message parsing ───────────────────────────────────────────────────────

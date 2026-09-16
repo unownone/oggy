@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Oggy — X-like fixture</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #000; color: #e7e9ea; }
+    header { display: flex; gap: 12px; padding: 12px 16px; border-bottom: 1px solid #2f3336; align-items: center; }
+    header form { display: flex; flex: 1; gap: 8px; }
+    input[name="q"] { flex: 1; background: #202327; border: 0; border-radius: 999px; color: #e7e9ea; padding: 10px 16px; font-size: 15px; }
+    button[type="submit"] { background: #1d9bf0; color: #fff; border: 0; border-radius: 999px; padding: 8px 16px; cursor: pointer; }
+    #timeline { max-width: 600px; margin: 0 auto; }
+    .cellInnerDiv { padding: 12px 16px; border-bottom: 1px solid #2f3336; }
+    .cellInnerDiv[data-selected="true"] { background: #16181c; }
+    .handle { color: #71767b; font-size: 13px; }
+    .text { margin: 6px 0; font-size: 15px; }
+    .open-post { background: transparent; color: #1d9bf0; border: 0; cursor: pointer; padding: 0; }
+    #drawer { position: fixed; right: 0; top: 0; bottom: 0; width: 360px; background: #000; border-left: 1px solid #2f3336; padding: 16px; overflow: auto; transform: translateX(100%); }
+    #drawer.open { transform: translateX(0); }
+    .comment { padding: 10px 0; border-bottom: 1px solid #2f3336; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <header>
+    <strong>x-fixture</strong>
+    <form id="search-form">
+      <input name="q" type="search" aria-label="Search" placeholder="Search" />
+      <button type="submit">Search</button>
+    </form>
+  </header>
+  <div id="timeline"></div>
+  <aside id="drawer" data-testid="x-comments">
+    <h2 id="drawer-title">Comments</h2>
+    <div id="comments"></div>
+  </aside>
+  <script>
+    const POSTS = [
+      { handle: "@qa", text: "Automation is eating the busywork. Record once, replay many." },
+      { handle: "@pw", text: "Playwright plus locators beats screenshot-diff for search bars." },
+      { handle: "@mcp", text: "WebMCP tools are just JSON recipes. No model required to click the 3rd post." },
+      { handle: "@css", text: "Locator fragility is a CSS problem. Hashed classes drift weekly." },
+      { handle: "@ts", text: "TypeScript benches should print pass rate, not vibes." },
+      { handle: "@ext", text: "Browser extension content scripts see the same DOM as the page." },
+      { handle: "@oggy", text: "Oggy: teaching a site to expose tools, one step at a time." },
+      { handle: "@bot", text: "If live x.com walls you, this fixture still scores the workflow." },
+    ];
+
+    const form = document.getElementById("search-form");
+    const input = document.querySelector('input[name="q"]');
+    const timeline = document.getElementById("timeline");
+    const drawer = document.getElementById("drawer");
+    const comments = document.getElementById("comments");
+    const drawerTitle = document.getElementById("drawer-title");
+
+    function rank(q) {
+      const needle = q.trim().toLowerCase();
+      const scored = POSTS.map((item, i) => ({
+        item, i,
+        score: !needle ? 0 : (item.text + item.handle).toLowerCase().includes(needle) ? 2 : 0,
+      }));
+      scored.sort((a, b) => b.score - a.score || a.i - b.i);
+      const ordered = scored.filter((s) => s.score > 0).concat(scored.filter((s) => s.score === 0)).map((s) => s.item);
+      while (ordered.length < 5) ordered.push({ handle: "@pad", text: `More about ${q || "search"} (${ordered.length + 1})` });
+      return ordered.slice(0, 8);
+    }
+
+    function openComments(post, rankIdx) {
+      timeline.querySelectorAll(".cellInnerDiv").forEach((el) => el.removeAttribute("data-selected"));
+      const cell = timeline.querySelector(`[data-rank="${rankIdx}"]`);
+      if (cell) cell.setAttribute("data-selected", "true");
+      drawer.classList.add("open");
+      drawerTitle.textContent = `Comments on ${post.handle}`;
+      comments.innerHTML = "";
+      const canned = [
+        `First reply to "${post.text.slice(0, 32)}…"`,
+        "Second reply — still no LLM in this loop.",
+        "Third reply fetched from the fixture thread.",
+      ];
+      canned.forEach((text) => {
+        const c = document.createElement("div");
+        c.className = "comment";
+        c.textContent = text;
+        comments.appendChild(c);
+      });
+    }
+
+    function render(q) {
+      timeline.innerHTML = "";
+      drawer.classList.remove("open");
+      rank(q).forEach((post, idx) => {
+        const cell = document.createElement("article");
+        cell.className = "cellInnerDiv";
+        cell.setAttribute("data-testid", "cellInnerDiv");
+        cell.setAttribute("data-rank", String(idx + 1));
+        const handle = document.createElement("div");
+        handle.className = "handle";
+        handle.textContent = post.handle;
+        const text = document.createElement("div");
+        text.className = "text";
+        text.textContent = post.text;
+        const btn = document.createElement("button");
+        btn.className = "open-post";
+        btn.type = "button";
+        btn.textContent = "View comments";
+        btn.addEventListener("click", () => openComments(post, idx + 1));
+        cell.appendChild(handle);
+        cell.appendChild(text);
+        cell.appendChild(btn);
+        timeline.appendChild(cell);
+      });
+    }
+
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      render(input.value);
+    });
+  </script>
+</body>
+</html>

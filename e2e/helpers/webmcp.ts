@@ -45,7 +45,9 @@ export async function executeTool(
       const tools = await mc.getTools();
       const tool = tools.find((t: any) => t.name === name);
       if (!tool) return null;
-      const result = await mc.executeTool(tool, JSON.stringify(input));
+      const encoded =
+        typeof input === "string" ? input : JSON.stringify(input ?? {});
+      const result = await mc.executeTool(tool, encoded);
       if (result == null) return null;
       return typeof result === "string" ? result : JSON.stringify(result);
     },

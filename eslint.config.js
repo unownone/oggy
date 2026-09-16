@@ -13,6 +13,8 @@ export default tseslint.config(
       "test-results/**",
       "blob-report/**",
       "demo/site/**",
+      "benches/reports/**",
+      "benches/sites/**",
     ],
   },
   js.configs.recommended,
