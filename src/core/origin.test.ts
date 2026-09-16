@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { toOriginKey } from "@/core";
+import { toOriginKey, isRecordableHref, selectRecordableOrigin } from "@/core";
 
 describe("toOriginKey", () => {
   it("strips path and query from a full URL", () => {
@@ -32,5 +32,47 @@ describe("toOriginKey", () => {
     expect(toOriginKey("https://user:pass@example.com/path")).toBe(
       "https://example.com",
     );
+  });
+});
+
+describe("isRecordableHref", () => {
+  it("accepts http and https", () => {
+    expect(isRecordableHref("http://127.0.0.1:4173/")).toBe(true);
+    expect(isRecordableHref("https://example.com/path")).toBe(true);
+  });
+
+  it("rejects extension and browser URLs", () => {
+    expect(isRecordableHref("chrome-extension://abc/popup.html")).toBe(false);
+    expect(isRecordableHref("chrome://extensions")).toBe(false);
+    expect(isRecordableHref("about:blank")).toBe(false);
+  });
+});
+
+describe("selectRecordableOrigin", () => {
+  it("prefers the active http(s) tab", () => {
+    expect(
+      selectRecordableOrigin([
+        { url: "chrome-extension://abc/popup.html", active: true },
+        { url: "http://127.0.0.1:4173/", active: true },
+      ]),
+    ).toBe("http://127.0.0.1:4173");
+  });
+
+  it("falls back to the most recently accessed web tab when the active tab is not recordable", () => {
+    expect(
+      selectRecordableOrigin([
+        { url: "chrome-extension://abc/popup.html", active: true, lastAccessed: 9 },
+        { url: "http://127.0.0.1:4173/", active: false, lastAccessed: 5 },
+        { url: "https://example.com/", active: false, lastAccessed: 8 },
+      ]),
+    ).toBe("https://example.com");
+  });
+
+  it("returns undefined when no web tab exists", () => {
+    expect(
+      selectRecordableOrigin([
+        { url: "chrome-extension://abc/popup.html", active: true },
+      ]),
+    ).toBeUndefined();
   });
 });

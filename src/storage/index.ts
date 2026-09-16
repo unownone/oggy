@@ -10,6 +10,7 @@ import {
   type OriginBundle,
   type DomainMcp,
   type RecordedEvent,
+  type RecordingSession,
   type RecordingState,
 } from "@/core";
 
@@ -82,6 +83,45 @@ export async function setRecordingState(
   await browser.storage.local.set({ [STORAGE_RECORDING_KEY]: state });
 }
 
+/**
+ * Create an empty session for `origin` so stop/synthesis always has a row
+ * even if the first DOM events arrive a moment later.
+ */
+export async function ensureSession(
+  origin: OriginKey,
+  sessionId: string,
+): Promise<OriginBundle> {
+  const origins = await loadOrigins();
+  if (!origins[origin]) {
+    origins[origin] = emptyBundle(origin);
+  }
+
+  const bundle = origins[origin];
+  if (!bundle.sessions.some((s) => s.id === sessionId)) {
+    bundle.sessions.push({
+      id: sessionId,
+      origin,
+      startedAt: new Date().toISOString(),
+      events: [],
+    });
+  }
+
+  await saveOrigins(origins);
+  return bundle;
+}
+
+export async function findSessionsById(
+  sessionId: string,
+): Promise<Array<{ origin: OriginKey; session: RecordingSession }>> {
+  const origins = await loadOrigins();
+  const matches: Array<{ origin: OriginKey; session: RecordingSession }> = [];
+  for (const bundle of Object.values(origins)) {
+    const session = bundle.sessions.find((s) => s.id === sessionId);
+    if (session) matches.push({ origin: bundle.origin, session });
+  }
+  return matches;
+}
+
 export async function appendEvent(
   origin: OriginKey,
   event: RecordedEvent,
@@ -94,11 +134,14 @@ export async function appendEvent(
   const bundle = origins[origin];
   const recState = await getRecordingState();
 
-  // Find or create the current session
-  let session = bundle.sessions.find((s) => s.id === recState.sessionId);
+  // Prefer the live session id; after stop we may still accept in-flight events
+  // for the same id until synthesis runs.
+  const sessionId = recState.sessionId || crypto.randomUUID();
+
+  let session = bundle.sessions.find((s) => s.id === sessionId);
   if (!session) {
     session = {
-      id: recState.sessionId || crypto.randomUUID(),
+      id: sessionId,
       origin,
       startedAt: new Date().toISOString(),
       events: [],

@@ -24,15 +24,27 @@ const INTERACTIVE_TAGS = new Set([
   "LABEL",
   "DETAILS",
   "SUMMARY",
+  "FORM",
 ]);
+
+const INTERACTIVE_SELECTOR =
+  "a, button, [role=button], input, select, textarea, label, form";
 
 export function shouldRecordTarget(el: EventTarget | null): boolean {
   if (!el || !(el instanceof Element)) return false;
   if (INTERACTIVE_TAGS.has(el.tagName)) return true;
   if (el.getAttribute("role") === "button") return true;
   if (el.getAttribute("contenteditable") === "true") return true;
-  if (el.closest("a, button, [role=button]")) return true;
+  if (el.closest(INTERACTIVE_SELECTOR)) return true;
   return false;
+}
+
+/** Walk up from a nested click target (e.g. span inside a button) to the control. */
+export function resolveInteractiveTarget(el: Element): Element {
+  if (INTERACTIVE_TAGS.has(el.tagName) || el.getAttribute("role") === "button") {
+    return el;
+  }
+  return el.closest(INTERACTIVE_SELECTOR) ?? el;
 }
 
 // ── DOM event → RecordedEvent ─────────────────────────────────────────────
@@ -46,34 +58,47 @@ export function toRecordedEvent(
 
   if (!target || !(target instanceof Element)) return null;
 
-  const locators = scoreLocators(target);
+  const interactive = resolveInteractiveTarget(target);
+  const locators = scoreLocators(interactive);
 
   switch (e.type) {
     case "click": {
       const text =
-        target.textContent?.trim().slice(0, 120) || undefined;
+        interactive.textContent?.trim().slice(0, 120) || undefined;
       const role =
-        target.getAttribute("role") || target.tagName.toLowerCase();
+        interactive.getAttribute("role") || interactive.tagName.toLowerCase();
       return { kind: "click", locators, text, role, url: href, t };
     }
 
     case "input":
     case "change": {
-      if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement)) {
+      if (
+        !(
+          interactive instanceof HTMLInputElement ||
+          interactive instanceof HTMLTextAreaElement ||
+          interactive instanceof HTMLSelectElement
+        )
+      ) {
         return null;
       }
       const fieldInfo = {
-        type: "type" in target ? (target as HTMLInputElement).type : undefined,
-        autocomplete: target.getAttribute("autocomplete") || undefined,
-        name: target.getAttribute("name") || undefined,
+        type:
+          "type" in interactive
+            ? (interactive as HTMLInputElement).type
+            : undefined,
+        autocomplete: interactive.getAttribute("autocomplete") || undefined,
+        name: interactive.getAttribute("name") || undefined,
       };
-      const rawValue = target.value;
+      const rawValue = interactive.value;
       const value = redactValue(rawValue, fieldInfo);
 
       return {
         kind: "input",
         locators,
-        fieldName: fieldInfo.name || target.getAttribute("aria-label") || undefined,
+        fieldName:
+          fieldInfo.name ||
+          interactive.getAttribute("aria-label") ||
+          undefined,
         inputType: fieldInfo.type,
         value,
         url: href,

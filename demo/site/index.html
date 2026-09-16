@@ -132,14 +132,34 @@
       alert('Purchase completed! (demo)');
     });
 
-    // Register a native WebMCP tool for testing coexistence
-    if (document.modelContext) {
-      document.modelContext.registerTool({
+    // Register a native WebMCP tool once document.modelContext exists.
+    // Oggy's MAIN-world polyfill boots at document_start and announces
+    // via `oggy:v1:hello`; the inline script here runs later, so poll + listen.
+    let demoPingRegistered = false;
+    function registerDemoPing() {
+      if (demoPingRegistered) return true;
+      const mc = document.modelContext;
+      if (!mc || typeof mc.registerTool !== 'function') return false;
+      demoPingRegistered = true;
+      mc.registerTool({
         name: 'demo_ping',
         description: 'A native demo tool that returns pong',
         inputSchema: { type: 'object', properties: {} },
         execute: async () => 'pong',
-      }).catch(() => {});
+      }).catch(() => {
+        demoPingRegistered = false;
+      });
+      return true;
+    }
+
+    window.addEventListener('oggy:v1:hello', registerDemoPing);
+    if (!registerDemoPing()) {
+      const started = Date.now();
+      const iv = setInterval(() => {
+        if (registerDemoPing() || Date.now() - started > 5000) {
+          clearInterval(iv);
+        }
+      }, 50);
     }
   </script>
 </body>

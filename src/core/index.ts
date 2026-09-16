@@ -28,6 +28,40 @@ export function toOriginKey(href: string): OriginKey {
   }
 }
 
+/** True for http(s) pages we can record; false for chrome-extension://, about:, etc. */
+export function isRecordableHref(href: string): boolean {
+  try {
+    const protocol = new URL(href).protocol;
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+export interface TabHint {
+  url?: string;
+  active?: boolean;
+  lastAccessed?: number;
+}
+
+/**
+ * Pick the origin to record against. Prefers an active http(s) tab so a
+ * popup opened as a full page (e2e) does not steal the origin.
+ */
+export function selectRecordableOrigin(tabs: TabHint[]): OriginKey | undefined {
+  const web = tabs.filter(
+    (t): t is TabHint & { url: string } =>
+      typeof t.url === "string" && isRecordableHref(t.url),
+  );
+  if (web.length === 0) return undefined;
+
+  const active = web.find((t) => t.active);
+  if (active) return toOriginKey(active.url);
+
+  web.sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0));
+  return toOriginKey(web[0].url);
+}
+
 // ── Sensitive-field detection & redaction ──────────────────────────────────
 
 const SENSITIVE_TYPES = new Set(["password", "hidden"]);

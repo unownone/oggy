@@ -222,7 +222,8 @@ export class HeuristicEngine implements ToolSynthesisEngine {
       usedNames.add(name);
 
       const { schema, argMap } = extractInputSchema(segment);
-      const steps = toReplaySteps(segment, argMap);
+        const steps = toReplaySteps(segment, argMap);
+        if (steps.length === 0) continue;
 
       // Build description from event summary
       const actionCount = segment.events.length;
