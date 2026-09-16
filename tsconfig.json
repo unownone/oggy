@@ -1,0 +1,15 @@
+{
+  "extends": "./.wxt/tsconfig.json",
+  "compilerOptions": {
+    "strict": true
+  },
+  "include": [
+    "src/**/*.ts",
+    "e2e/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    ".output",
+    "dist"
+  ]
+}

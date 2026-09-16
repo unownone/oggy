@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Oggy Demo Site</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 24px;
+      background: #fafafa;
+      color: #1a1a1a;
+    }
+    h1 { margin-bottom: 4px; }
+    .tagline { color: #666; margin-bottom: 24px; }
+    section { margin-bottom: 24px; padding: 16px; background: #fff; border-radius: 8px; border: 1px solid #e0e0e0; }
+    h2 { font-size: 16px; margin-bottom: 12px; }
+    label { display: block; font-size: 13px; margin-bottom: 4px; color: #555; }
+    input, button { padding: 8px 12px; font-size: 14px; border: 1px solid #ccc; border-radius: 4px; }
+    input { width: 100%; margin-bottom: 8px; }
+    button { cursor: pointer; background: #4a5568; color: #fff; border: none; border-radius: 4px; }
+    button:hover { background: #2d3748; }
+    .result { margin-top: 8px; padding: 8px; background: #f7fafc; border-radius: 4px; font-size: 13px; min-height: 32px; }
+    .todo-list { list-style: none; margin-top: 8px; }
+    .todo-list li { padding: 6px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+    .checkout-btn { background: #e53e3e; }
+    .checkout-btn:hover { background: #c53030; }
+  </style>
+</head>
+<body>
+  <h1>🐾 Oggy Demo</h1>
+  <p class="tagline">A test site for recording and replaying WebMCP tools</p>
+
+  <!-- Search section -->
+  <section>
+    <h2>Search</h2>
+    <form id="search-form">
+      <label for="search-input">Search query</label>
+      <input
+        type="text"
+        id="search-input"
+        name="q"
+        data-testid="demo-search-input"
+        placeholder="Search for items…"
+        aria-label="Search query"
+      />
+      <button type="submit" data-testid="demo-search-submit">Search</button>
+    </form>
+    <div class="result" data-testid="demo-result"></div>
+  </section>
+
+  <!-- Todo section -->
+  <section>
+    <h2>Todo List</h2>
+    <form id="todo-form">
+      <label for="todo-input">New todo</label>
+      <input
+        type="text"
+        id="todo-input"
+        name="todo"
+        data-testid="demo-todo-input"
+        placeholder="What needs to be done?"
+        aria-label="New todo"
+      />
+      <button type="submit" data-testid="demo-add-todo">Add Todo</button>
+    </form>
+    <ul class="todo-list" id="todo-list"></ul>
+  </section>
+
+  <!-- Sensitive field (password — must never be stored by Oggy) -->
+  <section>
+    <h2>Account (Sensitive)</h2>
+    <label for="password-input">Password</label>
+    <input
+      type="password"
+      id="password-input"
+      name="password"
+      data-testid="demo-password"
+      placeholder="Enter password"
+      aria-label="Password"
+    />
+  </section>
+
+  <!-- Consequential action -->
+  <section>
+    <h2>Checkout</h2>
+    <button data-testid="demo-checkout" class="checkout-btn">Complete Purchase</button>
+  </section>
+
+  <script>
+    // Search handler
+    const searchForm = document.getElementById('search-form');
+    const searchInput = document.querySelector('[data-testid="demo-search-input"]');
+    const resultEl = document.querySelector('[data-testid="demo-result"]');
+
+    searchForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const q = searchInput.value.trim();
+      if (q) {
+        resultEl.textContent = `Results for "${q}": Found 3 items matching your query.`;
+        // Add a result item
+        const item = document.createElement('div');
+        item.setAttribute('data-testid', 'demo-result');
+        item.textContent = `Result: ${q}`;
+        resultEl.appendChild(item);
+      }
+    });
+
+    // Todo handler
+    const todoForm = document.getElementById('todo-form');
+    const todoInput = document.querySelector('[data-testid="demo-todo-input"]');
+    const todoList = document.getElementById('todo-list');
+
+    todoForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const text = todoInput.value.trim();
+      if (text) {
+        const li = document.createElement('li');
+        li.setAttribute('data-testid', 'demo-todo-item');
+        li.textContent = text;
+        todoList.appendChild(li);
+        todoInput.value = '';
+      }
+    });
+
+    // Checkout handler
+    const checkoutBtn = document.querySelector('[data-testid="demo-checkout"]');
+    checkoutBtn.addEventListener('click', () => {
+      alert('Purchase completed! (demo)');
+    });
+
+    // Register a native WebMCP tool for testing coexistence
+    if (document.modelContext) {
+      document.modelContext.registerTool({
+        name: 'demo_ping',
+        description: 'A native demo tool that returns pong',
+        inputSchema: { type: 'object', properties: {} },
+        execute: async () => 'pong',
+      }).catch(() => {});
+    }
+  </script>
+</body>
+</html>

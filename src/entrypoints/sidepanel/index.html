@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Oggy — Side Panel</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding: 16px;
+      background: #fafafa;
+      color: #1a1a1a;
+    }
+    h1 { font-size: 16px; margin-bottom: 12px; }
+    .origin-row {
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 8px;
+      background: #fff;
+    }
+    .origin-name { font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px; word-break: break-all; }
+    .tool-list { margin: 8px 0; padding-left: 12px; }
+    .tool-row {
+      padding: 4px 0;
+      font-size: 12px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .tool-row code { font-weight: 600; margin-right: 8px; }
+    .tool-desc { color: #666; }
+    button {
+      padding: 4px 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 12px;
+      margin-right: 4px;
+    }
+    button:hover { background: #f0f0f0; }
+    button[aria-pressed="true"] { background: #38a169; color: #fff; border-color: #38a169; }
+    .empty { color: #999; font-size: 13px; font-style: italic; }
+  </style>
+</head>
+<body data-testid="oggy-sidepanel">
+  <h1>🐾 Oggy — Domain Explorer</h1>
+  <div data-testid="oggy-origin-list">
+    <p class="empty">No recorded domains yet.</p>
+  </div>
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>
