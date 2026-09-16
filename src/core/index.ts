@@ -3,6 +3,12 @@
 // Zero chrome.* dependencies. Importable from any context including tests.
 // ---------------------------------------------------------------------------
 
+import type { LoadCriteria } from "./load-criteria";
+import type { SkillSnapshot } from "./mcp-manifest";
+import type { PermissionDecision, ToolPatch, ToolUpdateProposal } from "./permissions";
+import type { Skill, SkillFlow } from "./skills";
+import type { BuiltinHandlerId, ToolLayer } from "./tool-names";
+
 // ── Storage keys ───────────────────────────────────────────────────────────
 export const STORAGE_ORIGINS_KEY = "oggy.origins";
 export const STORAGE_RECORDING_KEY = "oggy.recording";
@@ -13,6 +19,7 @@ export const BUS = {
   register: "oggy:v1:register",
   abort: "oggy:v1:abort",
   record: "oggy:v1:record",
+  permission: "oggy:v1:permission",
 } as const;
 
 // ── Origin key helpers ────────────────────────────────────────────────────
@@ -265,7 +272,19 @@ export type OggyMessage =
   | { type: "oggy/origin/list" }
   | { type: "oggy/origin/setEnabled"; origin: OriginKey; enabled: boolean }
   | { type: "oggy/origin/delete"; origin: OriginKey }
-  | { type: "oggy/session/append"; origin: OriginKey; event: RecordedEvent };
+  | { type: "oggy/session/append"; origin: OriginKey; event: RecordedEvent }
+  | { type: "oggy/skill/create"; origin: OriginKey; skill: Skill }
+  | {
+      type: "oggy/tool/proposeUpdate";
+      origin: OriginKey;
+      proposal: ToolUpdateProposal;
+    }
+  | {
+      type: "oggy/tool/resolveUpdate";
+      origin: OriginKey;
+      proposalId: string;
+      decision: PermissionDecision;
+    };
 
 export type OggyResponse =
   | { ok: true; recording: RecordingState }
@@ -282,6 +301,9 @@ const VALID_MESSAGE_TYPES = new Set<string>([
   "oggy/origin/setEnabled",
   "oggy/origin/delete",
   "oggy/session/append",
+  "oggy/skill/create",
+  "oggy/tool/proposeUpdate",
+  "oggy/tool/resolveUpdate",
 ]);
 
 export function parseMessage(input: unknown): OggyMessage {
@@ -307,6 +329,12 @@ export interface OriginBundle {
   enabled: boolean;
   mcp: DomainMcp | null;
   sessions: RecordingSession[];
+  /** User-created skills for later agent runs. */
+  skills?: Skill[];
+  /** Agent-proposed tool mutations waiting on the user. */
+  pendingUpdates?: ToolUpdateProposal[];
+  /** Approved patches applied on attach (catalog + learned). */
+  toolOverlays?: Record<string, ToolPatch>;
 }
 
 export interface DomainMcp {
@@ -314,7 +342,15 @@ export interface DomainMcp {
   version: number;
   synthesizedAt: string;
   tools: ToolRecipe[];
+  layer?: ToolLayer;
+  loadCriteria?: LoadCriteria;
+  skillsSnapshot?: SkillSnapshot[];
 }
+
+export type ToolImplementation =
+  | { kind: "recipe" }
+  | { kind: "builtin"; handler: BuiltinHandlerId }
+  | { kind: "composite"; uses: string[] };
 
 export interface ToolRecipe {
   name: string;
@@ -327,6 +363,8 @@ export interface ToolRecipe {
     untrustedContentHint: boolean;
   };
   steps: ReplayStep[];
+  layer?: ToolLayer;
+  implementation?: ToolImplementation;
 }
 
 export type ReplayStep =
@@ -335,7 +373,17 @@ export type ReplayStep =
   | { type: "select"; locators: Locator[]; arg: string }
   | { type: "submit"; locators: Locator[] }
   | { type: "navigate"; urlTemplate?: string; urlArg?: string }
-  | { type: "waitFor"; locators?: Locator[]; urlIncludes?: string };
+  | { type: "waitFor"; locators?: Locator[]; urlIncludes?: string }
+  | { type: "scroll"; locators?: Locator[]; deltaX?: number; deltaY?: number }
+  | { type: "move"; locators: Locator[] }
+  | { type: "slide"; locators: Locator[]; from?: Point; to?: Point }
+  | { type: "read"; locators: Locator[]; arg?: string }
+  | { type: "output"; locators?: Locator[]; arg?: string };
+
+export interface Point {
+  x: number;
+  y: number;
+}
 
 export type RecordedEvent =
   | {
@@ -369,6 +417,38 @@ export type RecordedEvent =
       urlPattern: string;
       status?: number;
       t: number;
+    }
+  | {
+      kind: "scroll";
+      locators?: Locator[];
+      deltaX: number;
+      deltaY: number;
+      url: string;
+      t: number;
+    }
+  | { kind: "move"; locators: Locator[]; url: string; t: number }
+  | {
+      kind: "slide";
+      locators: Locator[];
+      from: Point;
+      to: Point;
+      url: string;
+      t: number;
+    }
+  | {
+      kind: "read";
+      locators: Locator[];
+      fieldName?: string;
+      value?: string;
+      url: string;
+      t: number;
+    }
+  | {
+      kind: "output";
+      locators?: Locator[];
+      text?: string;
+      url: string;
+      t: number;
     };
 
 export interface RecordingSession {
@@ -377,6 +457,8 @@ export interface RecordingSession {
   startedAt: string;
   endedAt?: string;
   events: RecordedEvent[];
+  /** Built on stop; a Skill is created only after the user confirms. */
+  skillFlow?: SkillFlow;
 }
 
 export interface RecordingState {
@@ -384,3 +466,11 @@ export interface RecordingState {
   origin?: OriginKey;
   sessionId?: string;
 }
+
+export * from "./tool-names";
+export * from "./page-context";
+export * from "./load-criteria";
+export * from "./mcp-manifest";
+export * from "./primitives";
+export * from "./skills";
+export * from "./permissions";

@@ -16,6 +16,7 @@ import type {
   OriginKey,
   RecordingState,
 } from "@/core";
+import { buildSkillFlow } from "@/core/skills";
 import {
   getBundle,
   listBundles,
@@ -27,6 +28,9 @@ import {
   replaceMcp,
   upsertBundle,
   ensureSession,
+  addSkill,
+  upsertPendingUpdate,
+  resolvePendingUpdate,
 } from "@/storage";
 import { defaultEngine } from "@/engine";
 
@@ -59,13 +63,13 @@ export default defineBackground(() => {
         if (origin) {
           await ensureSession(origin, sessionId);
         }
-        updateBadge(true);
+        updateBadge(true, false);
         return { ok: true, recording: state };
       }
 
       case "oggy/record/stop": {
         const prev = await getRecordingState();
-        updateBadge(false);
+        updateBadge(false, false);
 
         // Flush in-flight content-script appends while recording is still
         // marked active so late events are not dropped.
@@ -120,6 +124,41 @@ export default defineBackground(() => {
         return { ok: true, recording };
       }
 
+      case "oggy/skill/create": {
+        const bundle = await addSkill(msg.origin, msg.skill);
+        return { ok: true, bundle };
+      }
+
+      case "oggy/tool/proposeUpdate": {
+        const proposal = {
+          ...msg.proposal,
+          status: "pending" as const,
+        };
+        const bundle = await upsertPendingUpdate(msg.origin, proposal);
+        const rec = await getRecordingState();
+        if (!rec.active) updateBadge(false, true);
+        return { ok: true, bundle };
+      }
+
+      case "oggy/tool/resolveUpdate": {
+        const bundle = await resolvePendingUpdate(
+          msg.origin,
+          msg.proposalId,
+          msg.decision,
+        );
+        if (msg.decision === "approved" && bundle.enabled && bundle.mcp) {
+          await broadcastToOrigin(msg.origin, {
+            type: "oggy/content/register",
+            mcp: bundle.mcp,
+          });
+        }
+        const pending =
+          bundle.pendingUpdates?.some((p) => p.status === "pending") ?? false;
+        const rec = await getRecordingState();
+        if (!rec.active) updateBadge(false, pending);
+        return { ok: true, bundle };
+      }
+
       default: {
         const _exhaustive: never = msg;
         return {
@@ -140,6 +179,7 @@ export default defineBackground(() => {
       if (!session || session.events.length === 0) continue;
 
       session.endedAt = new Date().toISOString();
+      session.skillFlow = buildSkillFlow(session);
       await upsertBundle(bundle);
 
       try {
@@ -160,10 +200,15 @@ export default defineBackground(() => {
     }
   }
 
-  function updateBadge(recording: boolean): void {
-    browser.action.setBadgeText({ text: recording ? "REC" : "" });
+  function updateBadge(recording: boolean, pendingUpdate = false): void {
+    if (recording) {
+      browser.action.setBadgeText({ text: "REC" });
+      browser.action.setBadgeBackgroundColor({ color: "#e53e3e" });
+      return;
+    }
+    browser.action.setBadgeText({ text: pendingUpdate ? "?" : "" });
     browser.action.setBadgeBackgroundColor({
-      color: recording ? "#e53e3e" : "#4a5568",
+      color: pendingUpdate ? "#d69e2e" : "#4a5568",
     });
   }
 });

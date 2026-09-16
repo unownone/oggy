@@ -10,7 +10,7 @@ import type { DomainMcp } from "@/core";
 import { ensureModelContext, registerRecipes } from "@/webmcp";
 
 export default defineUnlistedScript(() => {
-  let currentController: AbortController | null = null;
+  const controllers = new Map<string, AbortController>();
 
   bootPolyfill();
   // Isolated world may subscribe after this script's sync body. Re-send hello
@@ -18,34 +18,37 @@ export default defineUnlistedScript(() => {
   setTimeout(emitHello, 0);
   emitHello();
 
-  // Listen for register command
+  // Listen for register command — keyed by mcp.id so SPA ticks can
+  // attach/detach without aborting unrelated MCPs.
   window.addEventListener(BUS.register, ((e: CustomEvent) => {
     void (async () => {
       const mcp = e.detail?.mcp as DomainMcp | undefined;
       if (!mcp || !mcp.tools || mcp.tools.length === 0) return;
+      const id = mcp.id || "oggy.learned.unknown";
 
-      // Abort any previous registration
-      if (currentController) {
-        currentController.abort();
-        currentController = null;
-      }
+      controllers.get(id)?.abort();
+      controllers.delete(id);
 
       try {
         await ensureModelContext();
-        currentController = await registerRecipes(mcp);
+        controllers.set(id, await registerRecipes(mcp));
       } catch (err) {
         console.error("[oggy] Failed to register tools:", err);
       }
     })();
   }) as EventListener);
 
-  // Listen for abort command
-  window.addEventListener(BUS.abort, () => {
-    if (currentController) {
-      currentController.abort();
-      currentController = null;
+  // Listen for abort command. Missing mcpId = abort all (origin disable).
+  window.addEventListener(BUS.abort, ((e: CustomEvent) => {
+    const mcpId = e.detail?.mcpId as string | undefined;
+    if (mcpId) {
+      controllers.get(mcpId)?.abort();
+      controllers.delete(mcpId);
+      return;
     }
-  });
+    for (const controller of controllers.values()) controller.abort();
+    controllers.clear();
+  }) as EventListener);
 
   // Hook history for navigation recording
   hookHistory();
