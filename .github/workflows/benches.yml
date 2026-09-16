@@ -31,11 +31,15 @@ jobs:
         run: xvfb-run --auto-servernum npx tsx benches/runner/cli.ts --out benches/reports/latest.json
         env:
           CI: true
+      - name: Stage bench report
+        if: always()
+        run: mkdir -p artifacts/bench-reports && cp -R benches/reports/. artifacts/bench-reports/ || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: bench-report-fixtures
-          path: benches/reports/
+          path: artifacts/bench-reports
+          if-no-files-found: ignore
 
   live:
     name: Live site benches
@@ -58,8 +62,12 @@ jobs:
         run: xvfb-run --auto-servernum npx tsx benches/runner/cli.ts --live --fail-under 0 --out benches/reports/live.json google-live amazon-live x-live
         env:
           CI: true
+      - name: Stage bench report
+        if: always()
+        run: mkdir -p artifacts/bench-reports && cp -R benches/reports/. artifacts/bench-reports/ || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: bench-report-live
-          path: benches/reports/
+          path: artifacts/bench-reports
+          if-no-files-found: ignore

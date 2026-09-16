@@ -7,10 +7,10 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -55,3 +55,96 @@ jobs:
           name: oggy-chrome-mv3-zip
           path: artifacts/oggy-chrome.zip
           if-no-files-found: error
+
+  tag:
+    name: Create version tag
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.next.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Next version tag
+        id: next
+        run: |
+          set -euo pipefail
+          git fetch --tags --force origin
+          version="$(node <<'EOF'
+          const { execSync } = require("node:child_process");
+          const { readFileSync } = require("node:fs");
+          const pkg = JSON.parse(readFileSync("package.json", "utf8")).version;
+
+          function parts(v) {
+            return String(v)
+              .replace(/^v/, "")
+              .split(".")
+              .slice(0, 3)
+              .map((n) => parseInt(n, 10) || 0);
+          }
+          function cmp(a, b) {
+            const A = parts(a);
+            const B = parts(b);
+            for (let i = 0; i < 3; i++) {
+              const d = (A[i] || 0) - (B[i] || 0);
+              if (d) return d;
+            }
+            return 0;
+          }
+
+          let latest = "";
+          try {
+            latest =
+              execSync('git tag -l "v[0-9]*" --sort=-v:refname', {
+                encoding: "utf8",
+              })
+                .trim()
+                .split("\n")
+                .find(Boolean) || "";
+          } catch {
+            latest = "";
+          }
+          latest = latest.replace(/^v/, "");
+
+          let next;
+          if (!latest) next = pkg;
+          else if (cmp(pkg, latest) > 0) next = pkg;
+          else {
+            const p = parts(latest);
+            p[2] = (p[2] || 0) + 1;
+            next = `${p[0]}.${p[1]}.${p[2]}`;
+          }
+          process.stdout.write(next);
+          EOF
+          )"
+          tag="v${version}"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "Next tag: ${tag}"
+
+      - name: Push tag
+        env:
+          TAG: ${{ steps.next.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "$TAG"
+          git push origin "refs/tags/$TAG"
+
+  # GITHUB_TOKEN tag pushes do not start other workflows, so invoke Release
+  # with the new tag instead of relying on `on: push: tags` alone.
+  release:
+    name: Release
+    needs: tag
+    if: needs.tag.outputs.tag != ''
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.tag.outputs.tag }}
+    permissions:
+      contents: write

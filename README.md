@@ -66,7 +66,8 @@ npm run bench -- --live  # Same loop against the live sites (flaky; report-only)
 ### CI
 
 - **Pull requests** run lint, Vitest unit tests, and Playwright e2e (in parallel).
-- **Pushes to `main`** (and manual *Run workflow*) build and zip the Chrome extension. From the Actions run, download `oggy-chrome-mv3` (unpacked, for Load unpacked) or `oggy-chrome-mv3-zip`.
+- **Pushes to `main`** (and manual *Run workflow*) build and zip the Chrome extension, then create the next `v*` tag. From the Actions run, download `oggy-chrome-mv3` (unpacked, for Load unpacked) or `oggy-chrome-mv3-zip`.
+- **Version tags** (`v0.1.0`, …) publish a GitHub Release with `oggy-<version>-chrome.zip`. The first tag matches `package.json`; later tags bump patch unless `package.json` is already newer.
 
 ### Project structure
 

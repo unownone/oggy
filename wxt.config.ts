@@ -6,7 +6,6 @@ export default defineConfig({
   manifest: {
     name: "Oggy",
     description: "Teaching AI to use a website, one step at a time!",
-    version: "0.1.0",
     permissions: ["storage", "sidePanel", "scripting", "tabs", "webNavigation"],
     host_permissions: ["http://*/*", "https://*/*"],
     web_accessible_resources: [

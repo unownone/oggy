@@ -63,11 +63,14 @@ jobs:
         run: xvfb-run --auto-servernum npm run e2e
         env:
           CI: true
+      - name: Stage Playwright report
+        if: ${{ !cancelled() }}
+        run: mkdir -p artifacts/playwright-report && cp -R playwright-report/. artifacts/playwright-report/ || true
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:
           name: playwright-report
-          path: playwright-report/
+          path: artifacts/playwright-report
           retention-days: 7
           if-no-files-found: ignore
