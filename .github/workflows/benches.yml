@@ -28,7 +28,9 @@ jobs:
       - run: npx playwright install chromium --with-deps
       - run: npm run build
       - name: Run fixture benches
-        run: npx tsx benches/runner/cli.ts --headless --out benches/reports/latest.json
+        run: xvfb-run --auto-servernum npx tsx benches/runner/cli.ts --out benches/reports/latest.json
+        env:
+          CI: true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -53,7 +55,9 @@ jobs:
       - run: npx playwright install chromium --with-deps
       - run: npm run build
       - name: Run live benches
-        run: npx tsx benches/runner/cli.ts --live --headless --fail-under 0 --out benches/reports/live.json google-live amazon-live x-live
+        run: xvfb-run --auto-servernum npx tsx benches/runner/cli.ts --live --fail-under 0 --out benches/reports/live.json google-live amazon-live x-live
+        env:
+          CI: true
       - uses: actions/upload-artifact@v4
         if: always()
         with:

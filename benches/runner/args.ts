@@ -96,8 +96,8 @@ Options:
   --live              Include live internet specs (google.com, amazon.com, x.com)
   --fixtures-only     Only local CSS-fixture sites (default)
   --out <path>        JSON report path (default ${DEFAULT_OUT})
-  --headed            Show the browser (default)
-  --headless          Headless Chromium
+  --headed            Show the browser (default; MV3 always uses headed Chrome)
+  --headless          Accepted for CI; still launches headed Chrome (use xvfb)
   --fail-under <0-1>  Exit 1 if variant pass rate is below this
                       (default 0.5 fixtures / 0 live)
   --dry-run           Print the plan without launching a browser
@@ -107,7 +107,7 @@ Options:
 Examples:
   npm run bench
   npm run bench -- google-fixture amazon-fixture
-  npm run bench -- --live --headless --out benches/reports/live.json
+  npm run bench -- --live --out benches/reports/live.json
   npm run bench -- --list
 
 Exit codes:

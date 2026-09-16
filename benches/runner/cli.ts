@@ -59,7 +59,6 @@ async function main(argv: string[]): Promise<number> {
   }
 
   const report = await runSpecs(specs, {
-    headed: args.headed,
     live: args.live,
   });
   writeReport(report, args.out);

@@ -25,7 +25,6 @@ import {
 import { startFixtureServer } from "./server";
 
 export interface RunOptions {
-  headed: boolean;
   live: boolean;
 }
 
@@ -37,7 +36,7 @@ export async function runSpecs(
   const needsFixtures = specs.some((s) => s.kind === "fixture");
   const server = needsFixtures ? await startFixtureServer() : null;
 
-  const { context, extensionId } = await launchExtensionContext(options.headed);
+  const { context, extensionId } = await launchExtensionContext();
   const results: SpecOutcome[] = [];
 
   try {

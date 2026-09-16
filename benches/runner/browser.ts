@@ -22,14 +22,16 @@ export function assertExtensionBuilt(): void {
   }
 }
 
-export async function launchExtensionContext(headed: boolean): Promise<{
+export async function launchExtensionContext(): Promise<{
   context: BrowserContext;
   extensionId: string;
 }> {
   assertExtensionBuilt();
   const dir = extensionPath();
   const context = await chromium.launchPersistentContext("", {
-    headless: headed ? false : true,
+    // MV3 service workers need full Chrome, not chrome-headless-shell.
+    // CI runs under xvfb so headed Chrome works on Linux.
+    headless: false,
     args: [
       `--disable-extensions-except=${dir}`,
       `--load-extension=${dir}`,
