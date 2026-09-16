@@ -3,17 +3,19 @@
 // ---------------------------------------------------------------------------
 
 import { browser } from "wxt/browser";
-import type { OggyMessage, OggyResponse, RecordingState, OriginBundle } from "@/core";
+import type { OggyMessage, OggyResponse, OriginBundle } from "@/core";
+import { pickPageTabUrl } from "@/core";
 
 async function send(msg: OggyMessage): Promise<OggyResponse> {
   return browser.runtime.sendMessage(msg) as Promise<OggyResponse>;
 }
 
 async function getCurrentOrigin(): Promise<string | null> {
-  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.url) return null;
+  const tabs = await browser.tabs.query({ currentWindow: true });
+  const url = pickPageTabUrl(tabs);
+  if (!url) return null;
   try {
-    return new URL(tab.url).origin;
+    return new URL(url).origin;
   } catch {
     return null;
   }

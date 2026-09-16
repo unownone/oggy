@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { toOriginKey } from "@/core";
+import { toOriginKey, pickPageTabUrl } from "@/core";
 
 describe("toOriginKey", () => {
   it("strips path and query from a full URL", () => {
@@ -32,5 +32,33 @@ describe("toOriginKey", () => {
     expect(toOriginKey("https://user:pass@example.com/path")).toBe(
       "https://example.com",
     );
+  });
+});
+
+describe("pickPageTabUrl", () => {
+  it("prefers the active http(s) tab", () => {
+    expect(
+      pickPageTabUrl([
+        { active: false, url: "http://127.0.0.1:4173/" },
+        { active: true, url: "https://app.example.com/page" },
+      ]),
+    ).toBe("https://app.example.com/page");
+  });
+
+  it("skips chrome-extension tabs even when they are active", () => {
+    expect(
+      pickPageTabUrl([
+        { active: true, url: "chrome-extension://abcdef/popup.html" },
+        { active: false, url: "http://127.0.0.1:4173/" },
+      ]),
+    ).toBe("http://127.0.0.1:4173/");
+  });
+
+  it("returns undefined when there is no http(s) tab", () => {
+    expect(
+      pickPageTabUrl([
+        { active: true, url: "chrome-extension://abcdef/popup.html" },
+      ]),
+    ).toBeUndefined();
   });
 });

@@ -10,6 +10,7 @@ import {
   setRecordingState,
   appendEvent,
   replaceMcp,
+  findSessionById,
 } from "@/storage";
 import type { OriginBundle, RecordingState, DomainMcp } from "@/core";
 
@@ -136,5 +137,42 @@ describe("storage repository", () => {
     const bundle = await getBundle("https://r.com");
     expect(bundle!.mcp).toEqual(mcp);
     expect(bundle!.mcp!.tools).toHaveLength(1);
+  });
+
+  it("findSessionById locates a session on the preferred origin", async () => {
+    await setRecordingState({
+      active: true,
+      origin: "https://example.com",
+      sessionId: "sess-pref",
+    });
+    await appendEvent("https://example.com", {
+      kind: "click",
+      locators: [{ strategy: "testid", value: "btn" }],
+      url: "https://example.com",
+      t: 1,
+    });
+
+    const found = await findSessionById("sess-pref", "https://example.com");
+    expect(found).not.toBeNull();
+    expect(found!.bundle.origin).toBe("https://example.com");
+    expect(found!.session.events).toHaveLength(1);
+  });
+
+  it("findSessionById falls back across origins when preferred origin has no session", async () => {
+    await setRecordingState({
+      active: true,
+      origin: "chrome-extension://abc",
+      sessionId: "sess-other",
+    });
+    await appendEvent("http://127.0.0.1:4173", {
+      kind: "click",
+      locators: [{ strategy: "testid", value: "btn" }],
+      url: "http://127.0.0.1:4173/",
+      t: 1,
+    });
+
+    const found = await findSessionById("sess-other", "chrome-extension://abc");
+    expect(found).not.toBeNull();
+    expect(found!.bundle.origin).toBe("http://127.0.0.1:4173");
   });
 });

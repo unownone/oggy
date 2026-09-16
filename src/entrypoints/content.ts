@@ -16,13 +16,20 @@ export default defineContentScript({
   async main() {
     const origin = toOriginKey(window.location.href);
 
-    // 1. Inject MAIN world script
+    // Attach recorders immediately so we cannot miss the MAIN-world hello
+    // (injectScript may run oggy-main and dispatch hello before we listen).
+    setupDomRecording(origin);
+    window.addEventListener(BUS.record, ((e: CustomEvent) => {
+      const event = e.detail?.event as RecordedEvent | undefined;
+      if (event) {
+        send({ type: "oggy/session/append", origin, event });
+      }
+    }) as EventListener);
+
+    const hello = waitForHello();
     await injectScript("/oggy-main.js", { keepInDom: true });
+    await hello;
 
-    // 2. Wait for MAIN world to signal readiness
-    await waitForHello();
-
-    // 3. Check for existing MCP to inject
     const bundleResp = await send({ type: "oggy/origin/get", origin });
     if (
       bundleResp.ok &&
@@ -35,18 +42,6 @@ export default defineContentScript({
       dispatchToMain(BUS.register, { mcp: bundleResp.bundle.mcp });
     }
 
-    // 4. Listen for recording events from MAIN world
-    window.addEventListener(BUS.record, ((e: CustomEvent) => {
-      const event = e.detail?.event as RecordedEvent | undefined;
-      if (event) {
-        send({ type: "oggy/session/append", origin, event });
-      }
-    }) as EventListener);
-
-    // 5. Attach DOM recorders when recording is active
-    setupDomRecording(origin);
-
-    // 6. Listen for abort messages from background (origin disable)
     browser.runtime.onMessage.addListener((msg: unknown) => {
       if (
         typeof msg === "object" &&
@@ -75,13 +70,16 @@ function send(msg: OggyMessage): Promise<OggyResponse> {
 
 function waitForHello(): Promise<void> {
   return new Promise((resolve) => {
-    const handler = () => {
+    let settled = false;
+    const done = () => {
+      if (settled) return;
+      settled = true;
       window.removeEventListener(BUS.hello, handler);
       resolve();
     };
+    const handler = () => done();
     window.addEventListener(BUS.hello, handler);
-    // Also resolve after a timeout to not block forever
-    setTimeout(resolve, 2000);
+    setTimeout(done, 2000);
   });
 }
 
@@ -98,7 +96,6 @@ function setupDomRecording(origin: string): void {
     document.addEventListener(
       type,
       async (e: Event) => {
-        // Check if recording is active
         const recResp = await send({ type: "oggy/record/status" });
         if (!recResp.ok || !("recording" in recResp) || !recResp.recording.active) {
           return;

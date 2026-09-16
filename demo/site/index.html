@@ -101,9 +101,8 @@
       const q = searchInput.value.trim();
       if (q) {
         resultEl.textContent = `Results for "${q}": Found 3 items matching your query.`;
-        // Add a result item
         const item = document.createElement('div');
-        item.setAttribute('data-testid', 'demo-result');
+        item.setAttribute('data-testid', 'demo-result-item');
         item.textContent = `Result: ${q}`;
         resultEl.appendChild(item);
       }
@@ -133,14 +132,26 @@
     });
 
     // Register a native WebMCP tool for testing coexistence
-    if (document.modelContext) {
-      document.modelContext.registerTool({
-        name: 'demo_ping',
-        description: 'A native demo tool that returns pong',
-        inputSchema: { type: 'object', properties: {} },
-        execute: async () => 'pong',
-      }).catch(() => {});
-    }
+    (async () => {
+      for (let i = 0; i < 80; i++) {
+        const mc = document.modelContext;
+        if (mc && typeof mc.registerTool === "function") {
+          try {
+            await mc.registerTool({
+              name: "demo_ping",
+              description: "A native demo tool that returns pong",
+              inputSchema: { type: "object", properties: {} },
+              execute: async () => "pong",
+            });
+            return;
+          } catch {
+            const tools = typeof mc.getTools === "function" ? await mc.getTools() : [];
+            if (tools.some((t) => t.name === "demo_ping")) return;
+          }
+        }
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    })();
   </script>
 </body>
 </html>

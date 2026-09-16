@@ -9,12 +9,14 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   build:
+    name: Build Chrome extension
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    permissions:
-      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,7 +24,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
@@ -31,9 +33,19 @@ jobs:
       - name: Build Chrome extension
         run: npm run build
 
-      - name: Upload Chrome MV3 build
+      - name: Zip Chrome extension
+        run: npm run zip
+
+      - name: Upload unpacked Chrome MV3 build
         uses: actions/upload-artifact@v4
         with:
           name: oggy-chrome-mv3
           path: .output/chrome-mv3
+          if-no-files-found: error
+
+      - name: Upload zipped Chrome MV3 build
+        uses: actions/upload-artifact@v4
+        with:
+          name: oggy-chrome-mv3-zip
+          path: .output/*.zip
           if-no-files-found: error

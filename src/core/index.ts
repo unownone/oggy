@@ -28,6 +28,24 @@ export function toOriginKey(href: string): OriginKey {
   }
 }
 
+/** True for http(s) page URLs — not chrome-extension://, about:, etc. */
+export function isHttpUrl(url: string | undefined | null): boolean {
+  return !!url && (url.startsWith("http://") || url.startsWith("https://"));
+}
+
+/**
+ * Pick the webpage tab to associate with the popup/side panel.
+ * Prefers the active http(s) tab so opening popup.html as a page (e2e)
+ * still records against the demo site, not chrome-extension://.
+ */
+export function pickPageTabUrl(
+  tabs: Array<{ active?: boolean; url?: string }>,
+): string | undefined {
+  const activeHttp = tabs.find((t) => t.active && isHttpUrl(t.url));
+  if (activeHttp?.url) return activeHttp.url;
+  return tabs.find((t) => isHttpUrl(t.url))?.url;
+}
+
 // ── Sensitive-field detection & redaction ──────────────────────────────────
 
 const SENSITIVE_TYPES = new Set(["password", "hidden"]);

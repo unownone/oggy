@@ -4,7 +4,7 @@
 // ---------------------------------------------------------------------------
 
 import { browser } from "wxt/browser";
-import { toOriginKey, parseMessage } from "@/core";
+import { toOriginKey, parseMessage, pickPageTabUrl } from "@/core";
 import type { OggyMessage, OggyResponse, RecordingState } from "@/core";
 import {
   getBundle,
@@ -16,6 +16,7 @@ import {
   appendEvent,
   replaceMcp,
   upsertBundle,
+  findSessionById,
 } from "@/storage";
 import { defaultEngine } from "@/engine";
 
@@ -37,11 +38,9 @@ export default defineBackground(() => {
 
     switch (msg.type) {
       case "oggy/record/start": {
-        const [tab] = await browser.tabs.query({
-          active: true,
-          currentWindow: true,
-        });
-        const origin = tab?.url ? toOriginKey(tab.url) : undefined;
+        const tabs = await browser.tabs.query({ currentWindow: true });
+        const pageUrl = pickPageTabUrl(tabs);
+        const origin = pageUrl ? toOriginKey(pageUrl) : undefined;
         const sessionId = crypto.randomUUID();
         const state: RecordingState = {
           active: true,
@@ -59,28 +58,19 @@ export default defineBackground(() => {
         await setRecordingState(state);
         updateBadge(false);
 
-        // Trigger synthesis if we have events
-        if (prev.origin) {
-          const bundle = await getBundle(prev.origin);
-          if (bundle) {
-            const session = bundle.sessions.find(
-              (s) => s.id === prev.sessionId,
-            );
-            if (session && session.events.length > 0) {
-              session.endedAt = new Date().toISOString();
-              await upsertBundle(bundle);
+        const found = await findSessionById(prev.sessionId, prev.origin);
+        if (found && found.session.events.length > 0) {
+          found.session.endedAt = new Date().toISOString();
+          await upsertBundle(found.bundle);
 
-              // Synthesize asynchronously
-              try {
-                const mcp = await defaultEngine.synthesize({
-                  origin: prev.origin,
-                  session,
-                });
-                await replaceMcp(prev.origin, mcp);
-              } catch (err) {
-                console.error("[oggy] Synthesis failed:", err);
-              }
-            }
+          try {
+            const mcp = await defaultEngine.synthesize({
+              origin: found.bundle.origin,
+              session: found.session,
+            });
+            await replaceMcp(found.bundle.origin, mcp);
+          } catch (err) {
+            console.error("[oggy] Synthesis failed:", err);
           }
         }
 

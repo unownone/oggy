@@ -11,8 +11,12 @@ import { ensureModelContext, registerRecipes } from "@/webmcp";
 export default defineUnlistedScript(() => {
   let currentController: AbortController | null = null;
 
-  // Signal readiness to isolated world
-  window.dispatchEvent(new CustomEvent(BUS.hello));
+  void boot();
+
+  async function boot() {
+    await ensureModelContext();
+    window.dispatchEvent(new CustomEvent(BUS.hello));
+  }
 
   // Listen for register command
   window.addEventListener(BUS.register, (async (e: CustomEvent) => {
