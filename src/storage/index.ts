@@ -153,6 +153,30 @@ export async function appendEvent(
   await saveOrigins(origins);
 }
 
+export async function findSessionById(
+  sessionId: string | undefined,
+  preferredOrigin?: OriginKey,
+): Promise<{ bundle: OriginBundle; session: RecordingSession } | null> {
+  if (!sessionId) return null;
+
+  const origins = await loadOrigins();
+  if (preferredOrigin && origins[preferredOrigin]) {
+    const session = origins[preferredOrigin].sessions.find(
+      (s) => s.id === sessionId,
+    );
+    if (session) {
+      return { bundle: origins[preferredOrigin], session };
+    }
+  }
+
+  for (const bundle of Object.values(origins)) {
+    const session = bundle.sessions.find((s) => s.id === sessionId);
+    if (session) return { bundle, session };
+  }
+
+  return null;
+}
+
 export async function replaceMcp(
   origin: OriginKey,
   mcp: DomainMcp,

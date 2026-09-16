@@ -23,6 +23,8 @@ export const test = base.extend<OggyFixtures>({
   context: async ({}, use) => {
     const extensionPath = path.resolve(__dirname, "../../.output/chrome-mv3");
     const context = await chromium.launchPersistentContext("", {
+      // MV3 service workers need full Chrome, not chrome-headless-shell.
+      // CI runs under xvfb so headed Chrome works on Linux.
       headless: false,
       args: [
         `--disable-extensions-except=${extensionPath}`,
@@ -69,6 +71,10 @@ export const test = base.extend<OggyFixtures>({
       const page = await context.newPage();
       await page.goto("http://127.0.0.1:4173");
       await page.waitForLoadState("domcontentloaded");
+      await page.waitForFunction(
+        () => Boolean((document as unknown as { modelContext?: unknown }).modelContext),
+        { timeout: 10_000 },
+      );
       return page;
     });
   },

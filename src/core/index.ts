@@ -38,6 +38,11 @@ export function isRecordableHref(href: string): boolean {
   }
 }
 
+/** True for http(s) page URLs — not chrome-extension://, about:, etc. */
+export function isHttpUrl(url: string | undefined | null): boolean {
+  return typeof url === "string" && isRecordableHref(url);
+}
+
 export interface TabHint {
   url?: string;
   active?: boolean;
@@ -60,6 +65,19 @@ export function selectRecordableOrigin(tabs: TabHint[]): OriginKey | undefined {
 
   web.sort((a, b) => (b.lastAccessed ?? 0) - (a.lastAccessed ?? 0));
   return toOriginKey(web[0].url);
+}
+
+/**
+ * Pick the webpage tab to associate with the popup/side panel.
+ * Prefers the active http(s) tab so opening popup.html as a page (e2e)
+ * still records against the demo site, not chrome-extension://.
+ */
+export function pickPageTabUrl(
+  tabs: Array<{ active?: boolean; url?: string }>,
+): string | undefined {
+  const activeHttp = tabs.find((t) => t.active && isHttpUrl(t.url));
+  if (activeHttp?.url) return activeHttp.url;
+  return tabs.find((t) => isHttpUrl(t.url))?.url;
 }
 
 // ── Sensitive-field detection & redaction ──────────────────────────────────

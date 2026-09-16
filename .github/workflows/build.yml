@@ -1,0 +1,57 @@
+name: Build extension
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Chrome extension
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Chrome extension
+        run: npm run build
+
+      - name: Zip Chrome extension
+        run: npm run zip
+
+      - name: Stage artifacts
+        run: |
+          mkdir -p artifacts
+          cp -R .output/chrome-mv3 artifacts/chrome-mv3
+          cp .output/*.zip artifacts/oggy-chrome.zip
+
+      - name: Upload unpacked Chrome MV3 build
+        uses: actions/upload-artifact@v4
+        with:
+          name: oggy-chrome-mv3
+          path: artifacts/chrome-mv3
+          if-no-files-found: error
+
+      - name: Upload zipped Chrome MV3 build
+        uses: actions/upload-artifact@v4
+        with:
+          name: oggy-chrome-mv3-zip
+          path: artifacts/oggy-chrome.zip
+          if-no-files-found: error

@@ -1,10 +1,9 @@
 import { defineConfig } from "@playwright/test";
-import { resolve } from "path";
 
 export default defineConfig({
   testDir: "e2e/journeys",
   timeout: 60_000,
-  retries: 0,
+  retries: process.env.CI ? 2 : 0,
   workers: 1,
   use: {
     headless: false,

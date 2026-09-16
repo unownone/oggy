@@ -5,10 +5,8 @@
 // ---------------------------------------------------------------------------
 
 import {
-  isSensitiveField,
   redactValue,
   scoreLocators,
-  type Locator,
   type RecordedEvent,
 } from "@/core";
 
@@ -116,14 +114,6 @@ export function toRecordedEvent(
 }
 
 // ── Network sanitization ──────────────────────────────────────────────────
-
-const SENSITIVE_HEADERS = new Set([
-  "authorization",
-  "cookie",
-  "set-cookie",
-  "x-api-key",
-  "x-auth-token",
-]);
 
 /**
  * Strips query parameters and sensitive headers from network metadata.

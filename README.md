@@ -54,13 +54,19 @@ Install the [Model Context Tool Inspector](https://chromewebstore.google.com/det
 
 ```bash
 npm run dev          # WXT dev mode with HMR
-npm run test         # Vitest unit tests (91 tests)
+npm run lint         # ESLint
+npm run test         # Vitest unit tests
 npm run test:watch   # Vitest watch mode
 npm run test:coverage # Coverage report
 npm run e2e          # Build + Playwright e2e (requires built extension)
 npm run bench        # Record→replay CSS-fixture benches (google/amazon/x stand-ins)
 npm run bench -- --live  # Same loop against the live sites (flaky; report-only)
 ```
+
+### CI
+
+- **Pull requests** run lint, Vitest unit tests, and Playwright e2e (in parallel).
+- **Pushes to `main`** (and manual *Run workflow*) build and zip the Chrome extension. From the Actions run, download `oggy-chrome-mv3` (unpacked, for Load unpacked) or `oggy-chrome-mv3-zip`.
 
 ### Project structure
 

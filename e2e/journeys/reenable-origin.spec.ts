@@ -1,42 +1,34 @@
 import { test, expect } from "../fixtures/extension";
-import { getRegisteredTools } from "../helpers/webmcp";
+import { getRegisteredTools, waitForOggyTools } from "../helpers/webmcp";
+import { recordDemoSearch } from "../helpers/record";
 
 test.slow();
 
 test("re-enabling origin restores Oggy tools on reload", async ({
   popupPage,
   demoPage,
-  context,
 }) => {
-  // Record + synthesize
-  const popup = await popupPage();
-  await popup.getByTestId("oggy-record-toggle").click();
-
   const demo = await demoPage();
-  await demo.getByTestId("demo-search-input").fill("reenable test");
-  await demo.getByTestId("demo-search-submit").click();
-  await demo.waitForTimeout(500);
+  const popup = await popupPage();
+  await recordDemoSearch(popup, demo, "reenable test");
 
-  await popup.bringToFront();
-  await popup.getByTestId("oggy-record-toggle").click();
-  await popup.waitForTimeout(1500);
-
-  // Disable
   await popup.reload();
-  await popup.waitForTimeout(500);
-  await popup.getByTestId("oggy-mcp-toggle").click();
-  await popup.waitForTimeout(500);
+  await popup.waitForLoadState("domcontentloaded");
+  const mcpToggle = popup.getByTestId("oggy-mcp-toggle");
+  await expect(mcpToggle).toBeEnabled();
+  await mcpToggle.click();
+  await expect(mcpToggle).toHaveAttribute("aria-pressed", "false");
 
-  // Re-enable
   await popup.reload();
-  await popup.waitForTimeout(500);
-  await popup.getByTestId("oggy-mcp-toggle").click();
-  await popup.waitForTimeout(500);
+  await popup.waitForLoadState("domcontentloaded");
+  await expect(mcpToggle).toBeEnabled();
+  await mcpToggle.click();
+  await expect(mcpToggle).toHaveAttribute("aria-pressed", "true");
 
-  // Reload demo and verify tools return
   await demo.bringToFront();
   await demo.reload();
-  await demo.waitForTimeout(2000);
+  await demo.waitForLoadState("domcontentloaded");
+  await waitForOggyTools(demo);
 
   const tools = await getRegisteredTools(demo);
   const oggyTools = tools.filter((t) => t.name !== "demo_ping");

@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import { browser } from "wxt/browser";
-import type { OggyMessage, OggyResponse, OriginBundle } from "@/core";
+import type { OggyMessage, OggyResponse } from "@/core";
 
 async function send(msg: OggyMessage): Promise<OggyResponse> {
   return browser.runtime.sendMessage(msg) as Promise<OggyResponse>;

@@ -195,7 +195,9 @@ async function flushContentScripts(): Promise<void> {
 
 async function broadcastToOrigin(
   origin: OriginKey,
-  message: { type: "oggy/content/abort" } | { type: "oggy/content/register"; mcp: DomainMcp },
+  message:
+    | { type: "oggy/content/abort" }
+    | { type: "oggy/content/register"; mcp: DomainMcp },
 ): Promise<void> {
   const tabs = await browser.tabs.query({});
   await Promise.all(

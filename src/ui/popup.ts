@@ -4,6 +4,7 @@
 
 import { browser } from "wxt/browser";
 import {
+  pickPageTabUrl,
   selectRecordableOrigin,
   type OggyMessage,
   type OggyResponse,
@@ -16,14 +17,23 @@ async function send(msg: OggyMessage): Promise<OggyResponse> {
 
 async function getCurrentOrigin(): Promise<string | null> {
   const tabs = await browser.tabs.query({});
-  const origin = selectRecordableOrigin(
-    tabs.map((t) => ({
-      url: t.url,
-      active: t.active,
-      lastAccessed: (t as { lastAccessed?: number }).lastAccessed,
-    })),
+  const url = pickPageTabUrl(tabs);
+  if (url) {
+    try {
+      return new URL(url).origin;
+    } catch {
+      // fall through to lastAccessed origin
+    }
+  }
+  return (
+    selectRecordableOrigin(
+      tabs.map((t) => ({
+        url: t.url,
+        active: t.active,
+        lastAccessed: (t as { lastAccessed?: number }).lastAccessed,
+      })),
+    ) ?? null
   );
-  return origin ?? null;
 }
 
 function bindOnce(): void {

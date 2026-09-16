@@ -25,15 +25,15 @@ export default defineContentScript({
     // Recorders must attach before the hello/MCP handshake. Waiting on MAIN
     // readiness drops the e2e fill/click that happens at DOMContentLoaded.
     setupDomRecording(origin);
-
-    await injectScript("/oggy-main.js", { keepInDom: true });
-    await waitForHello();
-    await injectBundleIfEnabled(origin);
-
     window.addEventListener(BUS.record, ((e: CustomEvent) => {
       const event = e.detail?.event as RecordedEvent | undefined;
       if (event) queueRecordedEvent(origin, event);
     }) as EventListener);
+
+    const hello = waitForHello();
+    await injectScript("/oggy-main.js", { keepInDom: true });
+    await hello;
+    await injectBundleIfEnabled(origin);
 
     browser.runtime.onMessage.addListener(
       (msg: unknown, _sender, sendResponse) => {

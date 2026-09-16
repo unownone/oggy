@@ -1,4 +1,5 @@
 import { test, expect } from "../fixtures/extension";
+import { recordDemoSearch } from "../helpers/record";
 
 test.slow();
 
@@ -7,36 +8,38 @@ test("synthesize-on-stop produces MCP with tools and inputSchema", async ({
   demoPage,
   context,
 }) => {
-  // Record a search flow
-  const popup = await popupPage();
-  await popup.getByTestId("oggy-record-toggle").click();
-
   const demo = await demoPage();
-  await demo.getByTestId("demo-search-input").fill("synthesis test");
-  await demo.getByTestId("demo-search-submit").click();
-  await demo.waitForTimeout(500);
+  const popup = await popupPage();
+  await recordDemoSearch(popup, demo, "synthesis test");
 
-  // Stop recording
-  await popup.bringToFront();
-  await popup.getByTestId("oggy-record-toggle").click();
-  await popup.waitForTimeout(1500); // Wait for synthesis
-
-  // MV3 service-worker → self sendMessage is unreliable; read storage directly.
   const [worker] = context.serviceWorkers();
-  const origins = await worker.evaluate(async () => {
-    const data = await chrome.storage.local.get("oggy.origins");
-    return data["oggy.origins"] as Record<string, unknown> | undefined;
-  });
-
-  expect(origins).toBeTruthy();
-  const b = origins!["http://127.0.0.1:4173"] as {
-    mcp?: { tools?: Array<{ name: string; inputSchema?: { properties?: unknown } }> };
+  type OriginBundle = {
+    mcp?: {
+      tools: Array<{ name: string; inputSchema: { properties?: unknown } }>;
+    } | null;
   };
-  expect(b).toBeTruthy();
-  expect(b.mcp).toBeTruthy();
-  expect(b.mcp!.tools!.length).toBeGreaterThanOrEqual(1);
 
-  const tool = b.mcp!.tools![0];
+  let bundle: OriginBundle | null = null;
+  await expect
+    .poll(
+      async () => {
+        bundle = await worker.evaluate(async () => {
+          const data = await chrome.storage.local.get("oggy.origins");
+          const origins = (data["oggy.origins"] || {}) as Record<
+            string,
+            OriginBundle
+          >;
+          return origins["http://127.0.0.1:4173"] ?? null;
+        });
+        return bundle?.mcp?.tools?.length ?? 0;
+      },
+      { timeout: 15_000 },
+    )
+    .toBeGreaterThanOrEqual(1);
+
+  expect(bundle).not.toBeNull();
+  expect(bundle!.mcp).not.toBeNull();
+  const tool = bundle!.mcp!.tools[0];
   expect(tool).toHaveProperty("name");
   expect(tool).toHaveProperty("inputSchema");
   expect(tool.inputSchema).toHaveProperty("properties");

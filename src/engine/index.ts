@@ -9,7 +9,6 @@ import type {
   DomainMcp,
   ToolRecipe,
   ReplayStep,
-  Locator,
   RecordedEvent,
 } from "@/core";
 
