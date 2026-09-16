@@ -11,6 +11,8 @@ import {
   appendEvent,
   replaceMcp,
   findSessionById,
+  upsertPendingUpdate,
+  resolvePendingUpdate,
 } from "@/storage";
 import type { OriginBundle, RecordingState, DomainMcp } from "@/core";
 
@@ -137,6 +139,47 @@ describe("storage repository", () => {
     const bundle = await getBundle("https://r.com");
     expect(bundle!.mcp).toEqual(mcp);
     expect(bundle!.mcp!.tools).toHaveLength(1);
+  });
+
+  it("resolvePendingUpdate does not write overlays when denied", async () => {
+    await upsertBundle({
+      origin: "https://r.com",
+      enabled: true,
+      mcp: null,
+      sessions: [],
+    });
+    await upsertPendingUpdate("https://r.com", {
+      id: "p1",
+      origin: "https://r.com",
+      toolName: "find_listing",
+      reason: "broken",
+      patch: { description: "should not apply" },
+      status: "pending",
+      createdAt: "2026-01-01T00:00:00Z",
+    });
+    const denied = await resolvePendingUpdate("https://r.com", "p1", "denied");
+    expect(denied.pendingUpdates?.[0].status).toBe("denied");
+    expect(denied.toolOverlays).toBeUndefined();
+  });
+
+  it("resolvePendingUpdate writes overlay only when approved", async () => {
+    await upsertBundle({
+      origin: "https://ok.com",
+      enabled: true,
+      mcp: null,
+      sessions: [],
+    });
+    await upsertPendingUpdate("https://ok.com", {
+      id: "p2",
+      origin: "https://ok.com",
+      toolName: "find_listing",
+      reason: "fix locator",
+      patch: { description: "fixed" },
+      status: "pending",
+      createdAt: "2026-01-01T00:00:00Z",
+    });
+    const approved = await resolvePendingUpdate("https://ok.com", "p2", "approved");
+    expect(approved.toolOverlays?.find_listing).toEqual({ description: "fixed" });
   });
 
   it("findSessionById locates a session on the preferred origin", async () => {

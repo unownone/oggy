@@ -114,4 +114,17 @@ describe("playStep", () => {
     // Should not throw
     await expect(playStep(step, {})).resolves.toBeUndefined();
   });
+
+  it("scroll step into view does not throw", async () => {
+    const el = document.createElement("div");
+    el.setAttribute("data-testid", "card");
+    el.scrollIntoView = () => undefined;
+    document.body.appendChild(el);
+    await expect(
+      playStep(
+        { type: "scroll", locators: [{ strategy: "testid", value: "card" }] },
+        {},
+      ),
+    ).resolves.toBeUndefined();
+  });
 });

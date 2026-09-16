@@ -55,6 +55,27 @@ describe("parseMessage", () => {
     expect(msg.type).toBe("oggy/session/append");
   });
 
+  it("accepts skill create and permissioned tool update messages", () => {
+    expect(parseMessage({ type: "oggy/skill/create", origin: "https://a.com", skill: {} }).type).toBe(
+      "oggy/skill/create",
+    );
+    expect(
+      parseMessage({
+        type: "oggy/tool/proposeUpdate",
+        origin: "https://a.com",
+        proposal: {},
+      }).type,
+    ).toBe("oggy/tool/proposeUpdate");
+    expect(
+      parseMessage({
+        type: "oggy/tool/resolveUpdate",
+        origin: "https://a.com",
+        proposalId: "p1",
+        decision: "denied",
+      }).type,
+    ).toBe("oggy/tool/resolveUpdate");
+  });
+
   it("rejects unknown type", () => {
     expect(() => parseMessage({ type: "oggy/unknown" })).toThrow("Invalid message type");
   });

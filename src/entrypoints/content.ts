@@ -4,16 +4,32 @@
 // ---------------------------------------------------------------------------
 
 import { browser } from "wxt/browser";
-import { BUS, STORAGE_RECORDING_KEY, toOriginKey } from "@/core";
+import {
+  BUS,
+  STORAGE_ORIGINS_KEY,
+  STORAGE_RECORDING_KEY,
+  toOriginKey,
+} from "@/core";
 import type {
   OggyMessage,
   OggyResponse,
   RecordedEvent,
   DomainMcp,
+  OriginBundle,
   RecordingState,
+  ToolUpdateProposal,
 } from "@/core";
 import { shouldRecordTarget, toRecordedEvent } from "@/recorder";
 import { injectScript } from "wxt/utils/inject-script";
+import {
+  SPA_REFRESH_MS,
+  applyAttachPlan,
+  diffAttachments,
+  evaluateAttachments,
+} from "@/attach";
+import { pageContextFromLocation } from "@/core/page-context";
+import type { AttachmentState } from "@/core/mcp-manifest";
+import { BUILTIN_MCP_CATALOG } from "@/domains";
 
 export default defineContentScript({
   matches: ["https://*/*", "http://*/*"],
@@ -30,10 +46,21 @@ export default defineContentScript({
       if (event) queueRecordedEvent(origin, event);
     }) as EventListener);
 
+    window.addEventListener(BUS.permission, ((e: CustomEvent) => {
+      const proposal = e.detail?.proposal as ToolUpdateProposal | undefined;
+      if (!proposal) return;
+      void send({
+        type: "oggy/tool/proposeUpdate",
+        origin,
+        proposal,
+      });
+    }) as EventListener);
+
     const hello = waitForHello();
     await injectScript("/oggy-main.js", { keepInDom: true });
     await hello;
-    await injectBundleIfEnabled(origin);
+    await refreshAttachments(origin);
+    startSpaRefresh(origin);
 
     browser.runtime.onMessage.addListener(
       (msg: unknown, _sender, sendResponse) => {
@@ -42,11 +69,16 @@ export default defineContentScript({
 
         if (type === "oggy/content/abort") {
           dispatchToMain(BUS.abort, {});
+          attached = {};
           return;
         }
         if (type === "oggy/content/register") {
           const mcp = (msg as Record<string, unknown>).mcp as DomainMcp;
           dispatchToMain(BUS.register, { mcp });
+          if (mcp?.id) {
+            attached[mcp.id] = { fingerprint: "broadcast" };
+          }
+          void refreshAttachments(origin);
           return;
         }
         if (type === "oggy/content/flush") {
@@ -85,24 +117,13 @@ function dispatchToMain(eventName: string, detail: unknown): void {
   );
 }
 
-async function injectBundleIfEnabled(origin: string): Promise<void> {
-  const bundleResp = await send({ type: "oggy/origin/get", origin });
-  if (
-    bundleResp.ok &&
-    "bundle" in bundleResp &&
-    bundleResp.bundle &&
-    bundleResp.bundle.enabled &&
-    bundleResp.bundle.mcp &&
-    bundleResp.bundle.mcp.tools.length > 0
-  ) {
-    dispatchToMain(BUS.register, { mcp: bundleResp.bundle.mcp });
-  }
-}
-
 let recordingActive = false;
 let inFlightAppends = 0;
 let draining = false;
 const pendingEvents: Array<{ origin: string; event: RecordedEvent }> = [];
+let cachedBundle: OriginBundle | null | undefined;
+let attached: AttachmentState = {};
+let spaTimer: ReturnType<typeof setInterval> | undefined;
 
 async function refreshRecordingState(): Promise<void> {
   try {
@@ -112,6 +133,48 @@ async function refreshRecordingState(): Promise<void> {
   } catch {
     // Service worker may still be spinning up
   }
+}
+
+async function loadBundle(origin: string): Promise<OriginBundle | null> {
+  if (cachedBundle !== undefined) return cachedBundle;
+  try {
+    const bundleResp = await send({ type: "oggy/origin/get", origin });
+    cachedBundle =
+      bundleResp.ok && "bundle" in bundleResp ? bundleResp.bundle : null;
+  } catch {
+    cachedBundle = null;
+  }
+  return cachedBundle;
+}
+
+async function refreshAttachments(origin: string): Promise<void> {
+  await refreshRecordingState();
+  const bundle = await loadBundle(origin);
+  const page = pageContextFromLocation({
+    href: window.location.href,
+    title: document.title,
+    recordingActive,
+  });
+  const desired = evaluateAttachments({
+    page,
+    bundle,
+    catalog: BUILTIN_MCP_CATALOG,
+  });
+  const plan = diffAttachments(attached, desired);
+  for (const id of plan.detach) {
+    dispatchToMain(BUS.abort, { mcpId: id });
+  }
+  for (const target of plan.attach) {
+    dispatchToMain(BUS.register, { mcp: target.mcp });
+  }
+  attached = applyAttachPlan(attached, plan, desired);
+}
+
+function startSpaRefresh(origin: string): void {
+  if (spaTimer) clearInterval(spaTimer);
+  spaTimer = setInterval(() => {
+    void refreshAttachments(origin);
+  }, SPA_REFRESH_MS);
 }
 
 function queueRecordedEvent(origin: string, event: RecordedEvent): void {
@@ -165,10 +228,16 @@ function setupDomRecording(origin: string): void {
 
   browser.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
-    const change = changes[STORAGE_RECORDING_KEY];
-    if (!change) return;
-    const next = change.newValue as RecordingState | undefined;
-    recordingActive = next?.active === true;
+    const recChange = changes[STORAGE_RECORDING_KEY];
+    if (recChange) {
+      const next = recChange.newValue as RecordingState | undefined;
+      recordingActive = next?.active === true;
+      void refreshAttachments(origin);
+    }
+    if (changes[STORAGE_ORIGINS_KEY]) {
+      cachedBundle = undefined;
+      void refreshAttachments(origin);
+    }
   });
 
   const eventTypes = ["click", "input", "change", "submit"] as const;

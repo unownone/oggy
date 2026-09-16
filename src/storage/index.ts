@@ -12,7 +12,14 @@ import {
   type RecordedEvent,
   type RecordingSession,
   type RecordingState,
+  type Skill,
+  type ToolUpdateProposal,
 } from "@/core";
+import {
+  applyApprovedPatch,
+  resolveToolUpdate,
+  type PermissionDecision,
+} from "@/core/permissions";
 
 // ── Internal helpers ──────────────────────────────────────────────────────
 
@@ -187,4 +194,82 @@ export async function replaceMcp(
   }
   origins[origin].mcp = mcp;
   await saveOrigins(origins);
+}
+
+export async function addSkill(
+  origin: OriginKey,
+  skill: Skill,
+): Promise<OriginBundle> {
+  const origins = await loadOrigins();
+  if (!origins[origin]) {
+    origins[origin] = emptyBundle(origin);
+  }
+  const bundle = origins[origin];
+  bundle.skills = bundle.skills ?? [];
+  const idx = bundle.skills.findIndex((s) => s.id === skill.id);
+  if (idx >= 0) bundle.skills[idx] = skill;
+  else bundle.skills.push(skill);
+  await saveOrigins(origins);
+  return bundle;
+}
+
+export async function upsertPendingUpdate(
+  origin: OriginKey,
+  proposal: ToolUpdateProposal,
+): Promise<OriginBundle> {
+  const origins = await loadOrigins();
+  if (!origins[origin]) {
+    origins[origin] = emptyBundle(origin);
+  }
+  const bundle = origins[origin];
+  bundle.pendingUpdates = bundle.pendingUpdates ?? [];
+  const idx = bundle.pendingUpdates.findIndex((p) => p.id === proposal.id);
+  if (idx >= 0) bundle.pendingUpdates[idx] = proposal;
+  else bundle.pendingUpdates.push(proposal);
+  await saveOrigins(origins);
+  return bundle;
+}
+
+/**
+ * User-gated write. Denied proposals never touch tools or overlays.
+ */
+export async function resolvePendingUpdate(
+  origin: OriginKey,
+  proposalId: string,
+  decision: PermissionDecision,
+): Promise<OriginBundle> {
+  const origins = await loadOrigins();
+  if (!origins[origin]) {
+    origins[origin] = emptyBundle(origin);
+  }
+  const bundle = origins[origin];
+  bundle.pendingUpdates = bundle.pendingUpdates ?? [];
+  const idx = bundle.pendingUpdates.findIndex((p) => p.id === proposalId);
+  if (idx < 0) {
+    await saveOrigins(origins);
+    return bundle;
+  }
+
+  const resolved = resolveToolUpdate(bundle.pendingUpdates[idx], decision);
+  bundle.pendingUpdates[idx] = resolved;
+
+  if (resolved.status === "approved") {
+    bundle.toolOverlays = bundle.toolOverlays ?? {};
+    bundle.toolOverlays[resolved.toolName] = resolved.patch;
+    if (bundle.mcp) {
+      const toolIdx = bundle.mcp.tools.findIndex(
+        (t) => t.name === resolved.toolName,
+      );
+      if (toolIdx >= 0) {
+        bundle.mcp.tools[toolIdx] = applyApprovedPatch(
+          bundle.mcp.tools[toolIdx],
+          resolved,
+        );
+        bundle.mcp.version += 1;
+      }
+    }
+  }
+
+  await saveOrigins(origins);
+  return bundle;
 }

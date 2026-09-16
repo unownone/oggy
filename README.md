@@ -74,22 +74,27 @@ npm run bench -- --live  # Same loop against the live sites (flaky; report-only)
 ```
 src/
 ├── core/           # Origin keys, redaction, locators, messages, types (zero chrome.*)
+├── attach/         # loadCriteria evaluation + idempotent attach/detach diff
+├── domains/        # Builtin MCP catalog (primitives, amazon commerce, meta)
 ├── engine/         # Pluggable synthesis engine (HeuristicEngine v1, zero chrome.*)
 ├── recorder/       # DOM event capture, network sanitization
 ├── webmcp/         # Polyfill, tool registration, recipe playback (MAIN world)
 ├── storage/        # Per-origin chrome.storage.local repository
 ├── ui/             # Vanilla popup + side panel
 └── entrypoints/    # WXT entrypoints (background, content, popup, sidepanel, oggy-main)
+docs/architecture/  # Normative specs (recording + domain MCP + skills)
 demo/site/          # Static demo page with data-testids
 e2e/                # Playwright e2e journey specs
 ```
 
 ### Architecture
 
-- **MAIN world** (`oggy-main.js`): owns `document.modelContext`, polyfill, `registerTool`, recipe playback. No `chrome.*` APIs.
-- **Isolated content script**: owns recording, storage messaging, and bridges to MAIN via CustomEvents (`oggy:v1:*`).
-- **Background service worker**: message handler, recording state, synthesis-on-stop, badge.
-- **Popup/Side panel**: vanilla HTML + TS, communicate via `browser.runtime.sendMessage`.
+See **[docs/architecture/recording-mcp-skills.md](docs/architecture/recording-mcp-skills.md)** for the normative recording → domain MCP → skills model (`loadCriteria`, 500ms SPA attach, primitive vs domain vs skill, permissioned `oggy_update_tool`).
+
+- **MAIN world** (`oggy-main.js`): owns `document.modelContext`, polyfill, per-`mcp.id` `registerTool`, recipe playback. No `chrome.*` APIs.
+- **Isolated content script**: owns recording, storage messaging, `loadCriteria` evaluation every 500ms, and bridges to MAIN via CustomEvents (`oggy:v1:*`).
+- **Background service worker**: message handler, recording state, synthesis-on-stop, skill-flow on stop, permissioned tool updates, badge.
+- **Popup/Side panel**: vanilla HTML + TS, communicate via `browser.runtime.sendMessage`. Skill-flow summary and Approve/Deny for `oggy_update_tool` live in the side panel.
 
 ### Domain storage
 

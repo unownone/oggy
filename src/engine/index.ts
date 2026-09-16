@@ -185,6 +185,31 @@ function toReplaySteps(segment: Segment, argMap: Map<string, number>): ReplaySte
       case "network":
         // Network events are informational, not replayable steps
         break;
+      case "scroll":
+        steps.push({
+          type: "scroll",
+          locators: ev.locators,
+          deltaX: ev.deltaX,
+          deltaY: ev.deltaY,
+        });
+        break;
+      case "move":
+        steps.push({ type: "move", locators: ev.locators });
+        break;
+      case "slide":
+        steps.push({
+          type: "slide",
+          locators: ev.locators,
+          from: ev.from,
+          to: ev.to,
+        });
+        break;
+      case "read":
+        steps.push({ type: "read", locators: ev.locators, arg: ev.fieldName });
+        break;
+      case "output":
+        steps.push({ type: "output", locators: ev.locators });
+        break;
       default: {
         const _exhaustive: never = ev;
         throw new Error(`Unhandled event kind: ${(_exhaustive as RecordedEvent).kind}`);

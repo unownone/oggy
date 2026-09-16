@@ -3,7 +3,17 @@
 // Runs in the MAIN world. Zero chrome.* dependencies.
 // ---------------------------------------------------------------------------
 
-import type { DomainMcp, ReplayStep, Locator } from "@/core";
+import type { DomainMcp, ReplayStep, Locator, ToolRecipe } from "@/core";
+import {
+  BUS,
+  LIST_SKILLS_TOOL_NAME,
+  UPDATE_TOOL_NAME,
+  isPermissionedTool,
+  proposeToolUpdate,
+  type BuiltinHandlerId,
+  type ToolPatch,
+} from "@/core";
+import { playBuiltin } from "./builtins";
 
 // ── Polyfill bootstrap ────────────────────────────────────────────────────
 
@@ -74,10 +84,7 @@ export async function registerRecipes(
           inputSchema: recipe.inputSchema,
           annotations: recipe.annotations,
           execute: async (args: Record<string, unknown>) => {
-            for (const step of recipe.steps) {
-              await playStep(step, args);
-            }
-            return `Executed ${name} (${recipe.steps.length} steps)`;
+            return executeRecipe(recipe, args ?? {}, mcp);
           },
         },
         { signal: controller.signal },
@@ -88,6 +95,62 @@ export async function registerRecipes(
   }
 
   return controller;
+}
+
+async function executeRecipe(
+  recipe: ToolRecipe,
+  args: Record<string, unknown>,
+  mcp: DomainMcp,
+): Promise<string> {
+  if (
+    isPermissionedTool(recipe.name) ||
+    (recipe.implementation?.kind === "builtin" &&
+      recipe.implementation.handler === UPDATE_TOOL_NAME)
+  ) {
+    return requestToolUpdateFromAgent(args);
+  }
+
+  if (
+    recipe.name === LIST_SKILLS_TOOL_NAME ||
+    (recipe.implementation?.kind === "builtin" &&
+      recipe.implementation.handler === LIST_SKILLS_TOOL_NAME)
+  ) {
+    return JSON.stringify(mcp.skillsSnapshot ?? []);
+  }
+
+  if (recipe.implementation?.kind === "builtin") {
+    const handler: BuiltinHandlerId = recipe.implementation.handler;
+    return playBuiltin(handler, args, recipe, async (r, a) => {
+      for (const step of r.steps) {
+        await playStep(step, a);
+      }
+    });
+  }
+
+  for (const step of recipe.steps) {
+    await playStep(step, args);
+  }
+  return `Executed ${recipe.name} (${recipe.steps.length} steps)`;
+}
+
+function requestToolUpdateFromAgent(args: Record<string, unknown>): string {
+  const patch = (args.patch ?? {}) as ToolPatch;
+  const origin = window.location.origin;
+  const proposal = proposeToolUpdate({
+    origin,
+    toolName: String(args.toolName ?? ""),
+    reason: String(args.reason ?? ""),
+    patch,
+  });
+  window.dispatchEvent(
+    new CustomEvent(BUS.permission, {
+      detail: JSON.parse(JSON.stringify({ proposal })),
+    }),
+  );
+  return (
+    `Awaiting user permission to update tool "${proposal.toolName}". ` +
+    `The tool was not changed.`
+  );
 }
 
 // ── Collision resolution ──────────────────────────────────────────────────
@@ -168,6 +231,63 @@ export async function playStep(
 
     case "waitFor": {
       await waitForCondition(step);
+      break;
+    }
+
+    case "scroll": {
+      if (step.locators && step.locators.length > 0) {
+        const el = await resolveLocatorsWithWait(step.locators);
+        if (el instanceof HTMLElement) {
+          el.scrollIntoView({ block: "center", inline: "nearest" });
+        }
+      } else if (typeof window !== "undefined") {
+        window.scrollBy(step.deltaX ?? 0, step.deltaY ?? 0);
+      }
+      break;
+    }
+
+    case "move": {
+      const el = await resolveLocatorsWithWait(step.locators);
+      if (el instanceof HTMLElement) {
+        el.dispatchEvent(new PointerEvent("pointermove", { bubbles: true }));
+        el.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+      }
+      break;
+    }
+
+    case "slide": {
+      const el = await resolveLocatorsWithWait(step.locators);
+      if (el instanceof HTMLElement) {
+        const from = step.from ?? { x: 0, y: 0 };
+        const to = step.to ?? { x: 0, y: 0 };
+        el.dispatchEvent(
+          new PointerEvent("pointerdown", {
+            bubbles: true,
+            clientX: from.x,
+            clientY: from.y,
+          }),
+        );
+        el.dispatchEvent(
+          new PointerEvent("pointermove", {
+            bubbles: true,
+            clientX: to.x,
+            clientY: to.y,
+          }),
+        );
+        el.dispatchEvent(
+          new PointerEvent("pointerup", {
+            bubbles: true,
+            clientX: to.x,
+            clientY: to.y,
+          }),
+        );
+      }
+      break;
+    }
+
+    case "read":
+    case "output": {
+      await resolveLocatorsWithWait(step.locators ?? []);
       break;
     }
 
