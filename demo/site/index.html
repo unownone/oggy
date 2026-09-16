@@ -101,9 +101,7 @@
       const q = searchInput.value.trim();
       if (q) {
         resultEl.textContent = `Results for "${q}": Found 3 items matching your query.`;
-        // Add a result item
         const item = document.createElement('div');
-        item.setAttribute('data-testid', 'demo-result');
         item.textContent = `Result: ${q}`;
         resultEl.appendChild(item);
       }
